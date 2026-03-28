@@ -1,42 +1,62 @@
-# clearpa
+# ClearPA
 
-AI-powered prior authorization assistant for ophthalmology practices
+> Chart to approval. In seconds.
 
----
+**ClearPA** is an AI-powered prior authorization assistant for ophthalmology private practices. Upload a patient chart PDF and the payer's questionnaire — Claude reads both and pre-fills answers using approval-correlated clinical language.
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## The Problem
 
-## Getting Started
+Prior authorization paperwork costs US healthcare $36 billion annually. In a small ophthalmology practice, one coordinator spends 13+ hours per week hunting through chart notes to answer whatever questions the insurance company sends — in language precise enough for their AI reviewers to approve.
 
-First, run the development server:
+## The Solution
+
+Chart PDF in. Payer questionnaire in. Answered form out. In ~30 seconds instead of 30–100 minutes.
+
+ClearPA uses Claude to:
+- Extract and parse clinical data from EHR PDF exports
+- Match chart findings to payer questions
+- Generate answers in approval-correlated language (H16.223, not H04.123; full drug class names, not abbreviations; step therapy with dates and outcomes)
+- Flag questions it can't answer for the coordinator to complete
+- Detect concomitant-use warnings before submission
+
+## Setup
 
 ```bash
+git clone https://github.com/YOUR_USERNAME/clearpa
+cd clearpa
+npm install
+cp .env.example .env.local
+# Fill in your API keys in .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment Variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Your Anthropic API key |
+| `ANTHROPIC_MODEL` | Model to use (default: `claude-sonnet-4-6`) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Architecture
 
-## Learn More
+- **Frontend**: Next.js 14 App Router, TypeScript, Tailwind CSS, shadcn/ui
+- **AI**: Anthropic Claude via @anthropic-ai/sdk with streaming
+- **PDF parsing**: pdfjs-dist (client-side — PDFs never uploaded to servers)
+- **Database**: Supabase (session history only — no PHI stored)
+- **Deploy**: Vercel
 
-To learn more about Next.js, take a look at the following resources:
+## HIPAA Considerations
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- PDFs are parsed client-side; only extracted text is sent to Claude
+- No patient data is stored without explicit coordinator action
+- Anthropic enterprise API with BAA provides HIPAA-eligible data handling
+- No PHI is ever logged or persisted by default
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Team
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Built at UM CBC Spring Hackathon 2026 by Ethan Yang and Patrick Wang.
+Domain validation: practicing ophthalmologist at San Jose Eye.
+First user: Kaitlynn (PA coordinator).

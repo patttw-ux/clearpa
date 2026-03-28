@@ -1,0 +1,31 @@
+This is ClearPA, a medical SaaS application for prior authorization in ophthalmology.
+
+CODE STANDARDS:
+- TypeScript strict mode everywhere
+- No any types — define proper interfaces
+- All components in /components with barrel exports
+- All API routes in /app/api
+- All utility functions in /lib
+- Custom hooks in /hooks
+
+MEDICAL/HIPAA RULES:
+- Never log patient data to console
+- Never store PHI in localStorage or sessionStorage
+- PDF text extraction happens client-side only
+- All Supabase writes are coordinator-initiated, never automatic
+- Error messages must never expose patient data
+
+DESIGN RULES:
+- Follow the design system in globals.css exactly
+- All animations use CSS transitions or framer-motion — no abrupt state changes
+- Every interactive element needs hover AND focus states
+- Mobile-first responsive design
+- Minimum touch target: 44px × 44px (Apple HIG standard)
+
+AI INTEGRATION:
+- Model: claude-sonnet-4-6 (from env var ANTHROPIC_MODEL)
+- Always use streaming for analysis
+- Never call Claude on the client — only via /app/api routes
+- Parse [THINK] and [ANSWER] prefixes from Claude's streaming output
+
+Do not deviate from these rules without explicit instruction.
