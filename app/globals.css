@@ -37,6 +37,9 @@
     --ring: 221 83% 53%;
 
     --radius: 0.75rem;
+
+    /* Focus ring token (matches spec) */
+    --focus-ring: hsl(var(--primary));
   }
 
   * {
@@ -54,12 +57,183 @@
   h5,
   h6 {
     @apply font-display tracking-tight;
+    font-feature-settings: "ss01", "cv01";
+  }
+
+  /* Accessible focus: consistent ring, suppress default only where we replace */
+  :where(
+      button,
+      a,
+      input,
+      textarea,
+      select,
+      summary,
+      [role="button"],
+      [tabindex]:not([tabindex="-1"])
+    ):focus {
+    outline: none;
+  }
+
+  :where(
+      button,
+      a,
+      input,
+      textarea,
+      select,
+      summary,
+      [role="button"],
+      [tabindex]:not([tabindex="-1"])
+    ):focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* Smooth hovers for interactive surfaces */
+  :where(
+      button,
+      a,
+      [role="button"],
+      input[type="checkbox"],
+      input[type="radio"],
+      select,
+      summary,
+      textarea,
+      input:not([type="checkbox"]):not([type="radio"])
+    ) {
+    transition:
+      color 150ms ease,
+      background-color 150ms ease,
+      border-color 150ms ease,
+      opacity 150ms ease,
+      transform 150ms ease,
+      box-shadow 150ms ease;
   }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /** JetBrains mono — clinical answer blocks */
+  .answer-mono {
+    @apply font-mono text-[13px] text-foreground;
+    letter-spacing: -0.01em;
+    line-height: 1.7;
+  }
+
+  /** Error surface (soft red card) */
+  .error-surface {
+    background-color: #fee2e2;
+    color: #991b1b;
+    @apply rounded-lg;
+  }
+
+  /** History table loading skeleton */
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--muted) / 0.55) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+  }
+
+  /** Analyze PA — premium sheen on hover */
+  @keyframes analyze-sheen {
+    0% {
+      transform: translateX(-120%) skewX(-12deg);
+    }
+    100% {
+      transform: translateX(220%) skewX(-12deg);
+    }
+  }
+
+  .btn-analyze-sheen {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-analyze-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0) 40%,
+      rgba(255, 255, 255, 0.35) 50%,
+      rgba(255, 255, 255, 0) 60%,
+      transparent 100%
+    );
+    transform: translateX(-120%) skewX(-12deg);
+    opacity: 0;
+    transition: opacity 150ms ease;
+    pointer-events: none;
+  }
+
+  .btn-analyze-sheen:hover:not(:disabled)::after {
+    opacity: 1;
+    animation: analyze-sheen 1.1s ease-out;
+  }
+
+  /** Thinking: recording dot — box-shadow pulse */
+  @keyframes recording-ring {
+    0% {
+      box-shadow: 0 0 0 0 hsl(var(--primary) / 0.55);
+    }
+    70% {
+      box-shadow: 0 0 0 10px hsl(var(--primary) / 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
+    }
+  }
+
+  .recording-dot {
+    animation: recording-ring 1.6s ease-out infinite;
+  }
+
+  /** Found icon pop */
+  @keyframes found-pop {
+    0% {
+      transform: scale(0.5);
+    }
+    55% {
+      transform: scale(1.2);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  .found-icon-pop {
+    animation: found-pop 0.3s ease-out forwards;
+  }
+
+  /** Warning row — single amber flash */
+  @keyframes warning-row-flash {
+    0% {
+      background-color: rgba(251, 191, 36, 0.35);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+
+  .thinking-warning-flash {
+    animation: warning-row-flash 0.6s ease-out 1;
   }
 
   @keyframes thinking-dot-pulse {
@@ -74,7 +248,7 @@
     }
   }
 
-  .thinking-dot {
+  .thinking-dot-legacy {
     animation: thinking-dot-pulse 1.5s ease-in-out infinite;
   }
 

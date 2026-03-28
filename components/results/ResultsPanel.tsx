@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { CheckCheck, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 import type { PaAnswer } from "@/lib/types/analysis";
@@ -35,7 +36,9 @@ export function ResultsPanel({
   className,
 }: ResultsPanelProps) {
   const [overrides, setOverrides] = useState<Record<number, string>>({});
+  const [copySuccess, setCopySuccess] = useState(false);
   const autoFiredRef = useRef(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!isComplete) {
@@ -119,10 +122,22 @@ export function ResultsPanel({
     try {
       await navigator.clipboard.writeText(text);
       toast.success(`${questions.length} answers copied to clipboard.`);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      setCopySuccess(true);
+      copyTimerRef.current = setTimeout(() => {
+        setCopySuccess(false);
+        copyTimerRef.current = null;
+      }, 2000);
     } catch {
       toast.error("Could not copy to clipboard.");
     }
   }, [questions, answers, getBodyText]);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   const exportPdf = useCallback(() => {
     console.log("Export as PDF");
@@ -165,6 +180,7 @@ export function ResultsPanel({
             return (
               <AnswerCard
                 key={`${i}-${q.slice(0, 24)}`}
+                cardIndex={i}
                 questionNumber={i + 1}
                 questionText={q}
                 data={data}
@@ -179,9 +195,22 @@ export function ResultsPanel({
           <button
             type="button"
             onClick={() => void copyAll()}
-            className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-primary px-5 font-display text-sm font-semibold text-primary-foreground hover:bg-primary/90 sm:w-auto"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 font-display text-sm font-semibold text-primary-foreground transition-all duration-150 ease-out hover:bg-primary/90 sm:w-auto"
           >
-            Copy All Answers
+            <motion.span
+              key={copySuccess ? "check" : "copy"}
+              initial={{ scale: 0.85, opacity: 0.6 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="inline-flex"
+            >
+              {copySuccess ? (
+                <CheckCheck className="h-4 w-4" aria-hidden />
+              ) : (
+                <Copy className="h-4 w-4" aria-hidden />
+              )}
+            </motion.span>
+            {copySuccess ? "Copied" : "Copy All Answers"}
           </button>
           <button
             type="button"

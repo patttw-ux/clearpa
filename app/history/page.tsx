@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { ClipboardList, Loader2 } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 
 import { getSessions, updateSessionStatus } from "@/lib/pa-sessions";
@@ -74,7 +74,7 @@ function StatusBadge({
         <button
           type="button"
           className={cn(
-            "inline-flex min-w-[7rem] items-center justify-center rounded-full border px-2.5 py-1 font-display text-xs font-medium transition-colors",
+            "inline-flex min-w-[7rem] items-center justify-center rounded-full border px-2.5 py-1 font-display text-xs font-medium transition-all duration-150 ease-out",
             styles[current],
           )}
         >
@@ -99,6 +99,39 @@ function StatusBadge({
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
+  );
+}
+
+function HistoryTableSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="skeleton-shimmer h-8 w-48 rounded-lg" />
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="flex gap-4 border-b border-border bg-muted/30 px-4 py-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className="skeleton-shimmer h-3 flex-1 rounded"
+              style={{ animationDelay: `${i * 0.08}s` }}
+            />
+          ))}
+        </div>
+        {[0, 1, 2, 3, 4, 5].map((row) => (
+          <div
+            key={row}
+            className="flex gap-4 border-b border-border/60 px-4 py-4 last:border-0"
+          >
+            <div className="skeleton-shimmer h-4 w-28 rounded" />
+            <div className="skeleton-shimmer h-4 w-12 rounded" />
+            <div className="skeleton-shimmer h-4 w-16 rounded" />
+            <div className="skeleton-shimmer h-4 w-14 rounded" />
+            <div className="skeleton-shimmer h-6 w-20 rounded-full" />
+            <div className="skeleton-shimmer h-4 w-24 rounded" />
+            <div className="skeleton-shimmer ml-auto h-4 w-10 rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -142,8 +175,12 @@ export default function HistoryPage() {
 
   if (rows === null && !error) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center px-6 py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="mx-auto w-full max-w-6xl px-6 py-8 md:px-8 md:py-10">
+        <div className="mb-8">
+          <div className="skeleton-shimmer h-9 w-64 max-w-full rounded-lg" />
+          <div className="skeleton-shimmer mt-3 h-4 w-full max-w-xl rounded" />
+        </div>
+        <HistoryTableSkeleton />
       </div>
     );
   }

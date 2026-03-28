@@ -14,7 +14,7 @@ import {
 import type { ThinkingStep, ThinkingStepType } from "@/lib/types/analysis";
 import { cn } from "@/lib/utils";
 
-function iconFor(type: ThinkingStepType) {
+function iconFor(type: ThinkingStepType, stepId: string) {
   const common = "h-4 w-4 shrink-0";
   switch (type) {
     case "reading":
@@ -28,10 +28,15 @@ function iconFor(type: ThinkingStepType) {
       );
     case "found":
       return (
-        <CheckCircle2
-          className={cn(common, "text-accent")}
-          strokeWidth={2}
-        />
+        <motion.span
+          key={`found-${stepId}`}
+          className="inline-flex text-accent"
+          initial={{ scale: 0.5 }}
+          animate={{ scale: [0.5, 1.2, 1] }}
+          transition={{ duration: 0.3, ease: "easeOut", times: [0, 0.45, 1] }}
+        >
+          <CheckCircle2 className={common} strokeWidth={2} />
+        </motion.span>
       );
     case "flagged":
       return (
@@ -64,15 +69,32 @@ function formatStamp(totalSeconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export function ThinkingEntry({ step }: { step: ThinkingStep }) {
+export function ThinkingEntry({
+  step,
+  index,
+}: {
+  step: ThinkingStep;
+  index: number;
+}) {
+  const warningFlash = step.type === "warning";
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-      className="flex gap-3 border-b border-border/60 py-3 last:border-b-0"
+      transition={{
+        duration: 0.28,
+        ease: [0.25, 0.46, 0.45, 0.94],
+        delay: index * 0.045,
+      }}
+      className={cn(
+        "flex gap-3 border-b border-border/60 py-3 last:border-b-0",
+        warningFlash && "thinking-warning-flash rounded-md px-1 -mx-1",
+      )}
     >
-      <div className="mt-0.5 flex w-4 justify-center">{iconFor(step.type)}</div>
+      <div className="mt-0.5 flex w-4 justify-center">
+        {iconFor(step.type, step.id)}
+      </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm leading-relaxed text-foreground">{step.text}</p>
       </div>

@@ -201,6 +201,7 @@ export default function HistoryDetailPage() {
             return (
               <AnswerCard
                 key={`${i}-${q.slice(0, 24)}`}
+                cardIndex={i}
                 questionNumber={i + 1}
                 questionText={q}
                 data={data}

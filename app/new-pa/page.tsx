@@ -279,7 +279,12 @@ export default function NewPAPage() {
   const showAnalyzeRow = state === "idle" || state === "analyzing";
 
   return (
-    <div className="relative mx-auto w-full max-w-6xl px-6 py-8 md:px-8 md:py-10">
+    <div
+      className={cn(
+        "relative mx-auto w-full max-w-6xl px-6 py-8 md:px-8 md:py-10",
+        showAnalyzeRow && "pb-40 md:pb-10",
+      )}
+    >
       <AnalysisProgressBar mode={progressMode} />
 
       <header className="mb-8 max-w-2xl">
@@ -354,7 +359,12 @@ export default function NewPAPage() {
 
       {showAnalyzeRow && (
         <motion.div
-          className="mx-auto mt-10 flex w-full max-w-xl flex-col items-center"
+          className={cn(
+            "mx-auto flex w-full max-w-xl flex-col items-center",
+            "mt-10 md:mt-10",
+            "fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 mx-auto max-w-xl px-4 pt-2 md:relative md:inset-auto md:bottom-auto md:z-auto md:mt-10 md:px-0 md:pt-0",
+            "border-t border-border/50 bg-background/90 pb-2 backdrop-blur-md md:border-0 md:bg-transparent md:pb-0 md:backdrop-blur-none",
+          )}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{
@@ -368,10 +378,9 @@ export default function NewPAPage() {
             disabled={!canAnalyze || state === "analyzing"}
             onClick={() => void handleAnalyze()}
             className={cn(
-              "flex h-[52px] w-full items-center justify-center gap-2 rounded-xl px-6 font-display text-base font-semibold text-primary-foreground transition-all duration-150",
-              "bg-primary shadow-none",
+              "btn-analyze-sheen flex h-[52px] w-full items-center justify-center gap-2 rounded-xl px-6 font-display text-base font-semibold text-primary-foreground",
+              "bg-primary shadow-none transition-all duration-150 ease-out",
               "hover:bg-primary/90",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
               (!canAnalyze || state === "analyzing") &&
                 "cursor-not-allowed opacity-45 hover:bg-primary",
             )}
@@ -423,19 +432,19 @@ export default function NewPAPage() {
 
       {showError && errorMessage && (
         <div
-          className="mx-auto mt-10 w-full max-w-lg rounded-xl border-2 border-destructive/40 bg-destructive/[0.06] px-5 py-5 shadow-none"
+          className="error-surface mx-auto mt-10 w-full max-w-lg border border-red-200/80 px-5 py-5 shadow-none"
           role="alert"
         >
           <div className="flex gap-3">
             <AlertCircle
-              className="mt-0.5 h-5 w-5 shrink-0 text-destructive"
+              className="mt-0.5 h-5 w-5 shrink-0 text-[#991b1b]"
               aria-hidden
             />
             <div className="min-w-0 flex-1">
-              <p className="font-display text-sm font-semibold text-foreground">
+              <p className="font-display text-sm font-semibold text-[#991b1b]">
                 Analysis couldn&apos;t finish
               </p>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              <p className="mt-2 text-sm leading-relaxed text-[#991b1b]/90">
                 {errorMessage}
               </p>
               <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">

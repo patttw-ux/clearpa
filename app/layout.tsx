@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { DM_Sans, Inter, JetBrains_Mono } from "next/font/google";
 
+import { MainContent } from "@/components/layout/MainContent";
+import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Toaster } from "@/components/ui/toaster";
 
@@ -42,11 +44,12 @@ export default function RootLayout({
       <body
         className={`${dmSans.variable} ${inter.variable} ${jetbrainsMono.variable} font-sans`}
       >
-        <div className="flex h-screen min-h-0 overflow-hidden bg-background">
+        <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-background md:flex-row">
           <Sidebar />
-          <main className="min-h-0 flex-1 overflow-y-auto bg-background">
-            {children}
+          <main className="min-h-0 flex-1 overflow-y-auto bg-background pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
+            <MainContent>{children}</MainContent>
           </main>
+          <MobileTabBar />
         </div>
         <Toaster />
       </body>

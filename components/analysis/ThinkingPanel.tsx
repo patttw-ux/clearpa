@@ -85,7 +85,7 @@ export function ThinkingPanel({
               />
             ) : (
               <span
-                className="thinking-dot h-2.5 w-2.5 shrink-0 rounded-full bg-primary"
+                className="recording-dot h-2.5 w-2.5 shrink-0 rounded-full bg-primary"
                 aria-hidden
               />
             )}
@@ -125,8 +125,8 @@ export function ThinkingPanel({
                 className="max-h-[280px] overflow-y-auto px-2"
               >
                 <div className="px-2 pb-2 pt-1">
-                  {steps.map((step) => (
-                    <ThinkingEntry key={step.id} step={step} />
+                  {steps.map((step, index) => (
+                    <ThinkingEntry key={step.id} step={step} index={index} />
                   ))}
                   {(isAnalyzing || isPending) && steps.length === 0 && (
                     <p className="py-6 text-center text-sm text-muted-foreground">

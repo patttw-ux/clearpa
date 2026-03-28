@@ -121,11 +121,13 @@ export function SaveSessionDialog({
   }, [
     drug,
     drugOther,
+    drugResolved,
     initials,
     onOpenChange,
     payload,
     payer,
     payerOther,
+    payerResolved,
     summary.answered,
     summary.flagged,
     summary.warning,
