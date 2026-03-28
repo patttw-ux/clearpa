@@ -14,6 +14,7 @@ import {
 } from "@/components/upload/QuestionnaireInput";
 import { useAnalysis } from "@/hooks/useAnalysis";
 import { useWorkflow, type WorkflowState } from "@/hooks/useWorkflow";
+import { DEMO_CHART_TEXT, DEMO_QUESTIONS } from "@/lib/demo-data";
 import { extractPdfText } from "@/lib/pdf/extractText";
 import { cn } from "@/lib/utils";
 
@@ -67,6 +68,7 @@ export default function NewPAPage() {
     error,
     elapsedSeconds,
     startAnalysis,
+    runDemoSimulation,
     reset,
   } = useAnalysis();
 
@@ -213,6 +215,23 @@ export default function NewPAPage() {
     }
   }
 
+  function handleTryDemo() {
+    if (state !== "idle") return;
+    reset();
+    beginAnalysis();
+    setRunKey((k) => k + 1);
+    setSessionQuestions([...DEMO_QUESTIONS]);
+    setQuestionnaireTab("paste");
+    setQuestionnaireText(DEMO_QUESTIONS.join("\n"));
+    setQuestionnaireFile(null);
+    setChartFile(
+      new File([DEMO_CHART_TEXT], "demo-chart-synthetic.pdf", {
+        type: "application/pdf",
+      }),
+    );
+    void runDemoSimulation();
+  }
+
   function handleStartOver() {
     reset();
     resetToIdle();
@@ -354,6 +373,16 @@ export default function NewPAPage() {
               </>
             )}
           </button>
+
+          {state === "idle" && (
+            <button
+              type="button"
+              onClick={handleTryDemo}
+              className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl border border-border bg-transparent px-4 font-display text-sm font-medium text-foreground shadow-none transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              See a demo →
+            </button>
+          )}
 
           {state === "idle" && (
             <p className="mt-4 flex max-w-lg items-start justify-center gap-2 text-center text-xs leading-relaxed text-muted-foreground">

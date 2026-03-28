@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  DEMO_ANSWERS,
+  DEMO_THINKING_STEPS,
+} from "@/lib/demo-data";
 import type {
   PaAnswer,
   ThinkingStep,
@@ -10,6 +14,21 @@ import type {
 
 function nowSeconds(startMs: number): number {
   return Math.floor((Date.now() - startMs) / 1000);
+}
+
+function waitMs(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const id = window.setTimeout(() => resolve(), ms);
+    const onAbort = () => {
+      window.clearTimeout(id);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 function isThinkingType(t: string): t is ThinkingStepType {
@@ -214,6 +233,70 @@ export function useAnalysis() {
     }
   }, []);
 
+  /**
+   * Offline demo: replays DEMO_THINKING_STEPS with 600ms between steps, then applies DEMO_ANSWERS.
+   * No network or API key required.
+   */
+  const runDemoSimulation = useCallback(async () => {
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+
+    setAnswers([]);
+    setError(null);
+    setIsComplete(false);
+    setIsAnalyzing(true);
+    startMsRef.current = Date.now();
+    setElapsedSeconds(0);
+    setThinkingSteps([]);
+
+    try {
+      for (let i = 0; i < DEMO_THINKING_STEPS.length; i++) {
+        if (ac.signal.aborted) return;
+        if (i > 0) {
+          try {
+            await waitMs(600, ac.signal);
+          } catch {
+            return;
+          }
+        }
+        if (ac.signal.aborted) return;
+
+        const raw = DEMO_THINKING_STEPS[i]!;
+        const step: ThinkingStep = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+          type: raw.type,
+          text: raw.text,
+          atSeconds: nowSeconds(startMsRef.current),
+        };
+
+        setThinkingSteps((prev) => {
+          if (step.type === "reading") {
+            return [...prev.filter((s) => s.type !== "reading"), step];
+          }
+          return [...prev, step];
+        });
+
+        if (step.type === "complete") {
+          setIsComplete(true);
+        }
+      }
+
+      if (ac.signal.aborted) return;
+
+      setAnswers(
+        [...DEMO_ANSWERS].sort((a, b) => a.questionIndex - b.questionIndex),
+      );
+      setIsComplete(true);
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      setError(e instanceof Error ? e.message : "Demo simulation failed");
+    } finally {
+      setIsAnalyzing(false);
+      abortRef.current = null;
+    }
+  }, []);
+
   return {
     thinkingSteps,
     answers,
@@ -222,6 +305,7 @@ export function useAnalysis() {
     error,
     elapsedSeconds,
     startAnalysis,
+    runDemoSimulation,
     reset,
   };
 }
