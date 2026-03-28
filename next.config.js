@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ["pdfjs-dist", "pdf-parse"],
-  },
   webpack: (config) => {
     config.resolve.alias.canvas = false;
     return config;

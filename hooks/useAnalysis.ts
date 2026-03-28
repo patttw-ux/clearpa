@@ -112,7 +112,13 @@ export function useAnalysis() {
     setElapsedSeconds(0);
   }, []);
 
-  const startAnalysis = useCallback(async (chartText: string, questions: string | string[]) => {
+  const startAnalysis = useCallback(
+    async (input: {
+      chartFile: File;
+      questions: string[];
+      questionnaireFile?: File | null;
+      questionnaireText?: string;
+    }) => {
     abortRef.current?.abort();
     setAnswers([]);
     setError(null);
@@ -133,14 +139,22 @@ export function useAnalysis() {
     abortRef.current = ac;
 
     try {
-      const payload = {
-        chartText: typeof chartText === "string" ? chartText : "",
-        questions,
-      };
+      const formData = new FormData();
+      formData.append("chartFile", input.chartFile);
+      formData.append("questions", JSON.stringify(input.questions));
+      if (input.questionnaireFile) {
+        formData.append("questionnaireFile", input.questionnaireFile);
+      }
+      if (
+        input.questionnaireText !== undefined &&
+        input.questionnaireText.trim().length > 0
+      ) {
+        formData.append("questionnaireText", input.questionnaireText.trim());
+      }
+
       const res = await fetch("/api/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: formData,
         signal: ac.signal,
       });
 

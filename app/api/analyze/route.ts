@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
 
 import { CLEARPA_ANALYZE_SYSTEM_PROMPT } from "@/lib/prompts/analyze-system";
 
@@ -18,62 +19,168 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { chartText?: string; questions?: string | string[] };
-  try {
-    body = await req.json();
-  } catch {
-    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  const chartTextRaw = body.chartText;
-  const chartText =
-    typeof chartTextRaw === "string" ? chartTextRaw.trim() : "";
-  console.log(
-    "[/api/analyze] chartText:",
-    chartText.length > 0
-      ? chartText.length > 100
-        ? `${chartText.slice(0, 100)}… (${chartText.length} chars)`
-        : `${chartText} (${chartText.length} chars)`
-      : "EMPTY",
-  );
-
-  const questionsRaw = body.questions;
-  if (!chartText) {
+  const contentType = req.headers.get("content-type") || "";
+  if (!contentType.includes("multipart/form-data")) {
     return Response.json(
-      {
-        error:
-          typeof chartTextRaw === "undefined"
-            ? "chartText is missing from the request body."
-            : "chartText is empty or whitespace only—the patient chart PDF may have no extractable text.",
-      },
+      { error: "Expected multipart/form-data with chartFile and questions." },
       { status: 400 },
     );
   }
+
+  let formData: FormData;
+  try {
+    formData = await req.formData();
+  } catch {
+    return Response.json({ error: "Invalid form data" }, { status: 400 });
+  }
+
+  const chartFile = formData.get("chartFile");
+  if (!(chartFile instanceof File) || chartFile.size === 0) {
+    return Response.json(
+      { error: "chartFile is required and must be a non-empty PDF." },
+      { status: 400 },
+    );
+  }
+
+  if (chartFile.type !== "application/pdf") {
+    return Response.json(
+      { error: "chartFile must be a PDF (application/pdf)." },
+      { status: 400 },
+    );
+  }
+
+  const questionnaireFileRaw = formData.get("questionnaireFile");
+  const questionnaireFile =
+    questionnaireFileRaw instanceof File && questionnaireFileRaw.size > 0
+      ? questionnaireFileRaw
+      : null;
+
   if (
-    questionsRaw === undefined ||
-    (Array.isArray(questionsRaw) && questionsRaw.length === 0) ||
-    (typeof questionsRaw === "string" && !questionsRaw.trim())
+    questionnaireFile &&
+    questionnaireFile.type !== "application/pdf"
   ) {
     return Response.json(
-      {
-        error:
-          "questions is required: provide a non-empty string or string array.",
-      },
+      { error: "questionnaireFile must be a PDF (application/pdf)." },
       { status: 400 },
     );
   }
 
-  const questionsBlock = Array.isArray(questionsRaw)
-    ? formatQuestionsList(questionsRaw)
-    : formatQuestionsList([questionsRaw.trim()]);
+  const questionnaireTextRaw = formData.get("questionnaireText");
+  const questionnaireText =
+    typeof questionnaireTextRaw === "string" ? questionnaireTextRaw.trim() : "";
 
-  const userContent = `--- PATIENT CHART ---
-${chartText}
+  const questionsRaw = formData.get("questions");
+  if (typeof questionsRaw !== "string" || !questionsRaw.trim()) {
+    return Response.json(
+      { error: "questions is required as a JSON array string." },
+      { status: 400 },
+    );
+  }
+
+  let questionsParsed: string[];
+  try {
+    const parsed = JSON.parse(questionsRaw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return Response.json(
+        { error: "questions must be a JSON array of strings." },
+        { status: 400 },
+      );
+    }
+    if (!parsed.every((x) => typeof x === "string")) {
+      return Response.json(
+        { error: "questions array must contain only strings." },
+        { status: 400 },
+      );
+    }
+    questionsParsed = parsed.map((s) => String(s).trim()).filter(Boolean);
+  } catch {
+    return Response.json(
+      { error: "questions must be valid JSON." },
+      { status: 400 },
+    );
+  }
+
+  /** Empty list is allowed only when the payer questionnaire is attached as a PDF (Claude reads it natively). */
+  if (questionsParsed.length === 0) {
+    const questionnaireFileForEmpty =
+      questionnaireFileRaw instanceof File && questionnaireFileRaw.size > 0;
+    if (!questionnaireFileForEmpty) {
+      return Response.json(
+        {
+          error:
+            "questions must be a non-empty array unless a payer questionnaire PDF is attached.",
+        },
+        { status: 400 },
+      );
+    }
+  }
+
+  const chartBuffer = Buffer.from(await chartFile.arrayBuffer());
+  const chartB64 = chartBuffer.toString("base64");
+
+  let questionnaireB64: string | null = null;
+  if (questionnaireFile) {
+    const qBuf = Buffer.from(await questionnaireFile.arrayBuffer());
+    questionnaireB64 = qBuf.toString("base64");
+  }
+
+  const questionsBlock =
+    questionsParsed.length > 0
+      ? formatQuestionsList(questionsParsed)
+      : `Answer every question in the payer questionnaire PDF (second document) in the order it appears. Use questionIndex 0 for the first question, 1 for the second, and so on.`;
+
+  const docBlocks: ContentBlockParam[] = [
+    {
+      type: "document",
+      source: {
+        type: "base64",
+        media_type: "application/pdf",
+        data: chartB64,
+      },
+      title: "Patient chart",
+    },
+  ];
+
+  if (questionnaireB64) {
+    docBlocks.push({
+      type: "document",
+      source: {
+        type: "base64",
+        media_type: "application/pdf",
+        data: questionnaireB64,
+      },
+      title: "Payer questionnaire",
+    });
+  }
+
+  let instructions = `The first attached PDF is the patient chart.`;
+
+  if (questionnaireB64) {
+    instructions += ` The second attached PDF is the payer questionnaire.`;
+  } else if (questionnaireText) {
+    instructions += ` The payer questionnaire was pasted as text below.`;
+  }
+
+  instructions += `
 
 --- PAYER QUESTIONS (answer each; use indices) ---
-${questionsBlock}
+${questionsBlock}`;
+
+  if (questionnaireText && !questionnaireB64) {
+    instructions += `
+
+--- PAYER QUESTIONNAIRE (pasted text) ---
+${questionnaireText}`;
+  }
+
+  instructions += `
 
 Follow the system output format exactly.`;
+
+  const userContent: ContentBlockParam[] = [
+    ...docBlocks,
+    { type: "text", text: instructions },
+  ];
 
   const model =
     process.env.ANTHROPIC_MODEL?.trim() || "claude-sonnet-4-20250514";
@@ -119,7 +226,7 @@ Follow the system output format exactly.`;
       try {
         const anthropicStream = await anthropic.messages.create({
           model,
-          max_tokens: 16384,
+          max_tokens: 4000,
           stream: true,
           system: CLEARPA_ANALYZE_SYSTEM_PROMPT,
           messages: [{ role: "user", content: userContent }],

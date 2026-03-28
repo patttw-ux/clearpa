@@ -16,7 +16,6 @@ import {
 import { useAnalysis } from "@/hooks/useAnalysis";
 import { useWorkflow, type WorkflowState } from "@/hooks/useWorkflow";
 import { DEMO_CHART_TEXT, DEMO_QUESTIONS } from "@/lib/demo-data";
-import { extractPdfText } from "@/lib/pdf/extractText";
 import type { SessionSavePayload } from "@/lib/types/pa-session";
 import { cn } from "@/lib/utils";
 
@@ -154,6 +153,27 @@ export default function NewPAPage() {
     questionnaireText,
   ]);
 
+  /** When questionnaire is a PDF only, question labels are derived after analysis from answer indices. */
+  const resultsQuestions = useMemo(() => {
+    if (sessionQuestions.length > 0) return sessionQuestions;
+    if (
+      state === "complete" &&
+      answers.length > 0 &&
+      questionnaireTab === "upload" &&
+      questionnaireFile
+    ) {
+      const max = Math.max(...answers.map((a) => a.questionIndex), 0);
+      return Array.from({ length: max + 1 }, (_, i) => `Question ${i + 1}`);
+    }
+    return sessionQuestions;
+  }, [
+    sessionQuestions,
+    state,
+    answers,
+    questionnaireTab,
+    questionnaireFile,
+  ]);
+
   const saveSummary = useMemo(() => {
     let answered = 0;
     let flagged = 0;
@@ -183,50 +203,26 @@ export default function NewPAPage() {
     setExtractBusy(true);
 
     try {
-      const chartText = await extractPdfText(chartFile);
-      const chartPreview =
-        chartText.length > 0 ? chartText.slice(0, 200) : "(empty)";
-      console.log(
-        "[ClearPA] Patient chart extract (first 200 chars):",
-        chartPreview,
-      );
-
-      if (!chartText.trim()) {
-        fail(
-          "The patient chart PDF had no extractable text. It may be scanned images only—try a text-based PDF or OCR.",
-        );
-        return;
-      }
-
-      let questions: string | string[];
+      let qList: string[];
       if (questionnaireTab === "upload") {
         if (!questionnaireFile) return;
-        const qText = await extractPdfText(questionnaireFile);
-        console.log(
-          "[ClearPA] Questionnaire extract (first 200 chars):",
-          qText.length > 0 ? qText.slice(0, 200) : "(empty)",
-        );
-        if (!qText.trim()) {
-          fail(
-            "The payer questionnaire PDF had no extractable text. Try a text-based PDF or use Paste Questions.",
-          );
-          return;
-        }
-        const lines = qText
-          .split("\n")
-          .map((s) => s.trim())
-          .filter(Boolean);
-        questions = lines.length > 0 ? lines : [qText];
+        qList = [];
       } else {
         const raw = questionnaireText.trim();
         const lines = raw.split("\n").map((s) => s.trim()).filter(Boolean);
-        questions = lines.length > 0 ? lines : [raw];
+        qList = lines.length > 0 ? lines : [raw];
       }
 
-      const qList = Array.isArray(questions) ? questions : [questions];
       setSessionQuestions(qList);
 
-      await startAnalysis(chartText.trim(), questions);
+      await startAnalysis({
+        chartFile,
+        questions: qList,
+        questionnaireFile:
+          questionnaireTab === "upload" ? questionnaireFile : null,
+        questionnaireText:
+          questionnaireTab === "paste" ? questionnaireText : undefined,
+      });
     } catch (e) {
       console.error(e);
       fail(
@@ -593,7 +589,7 @@ export default function NewPAPage() {
         <div className="mx-auto mt-6 w-full max-w-6xl">
           <ResultsPanel
             isComplete={isComplete}
-            questions={sessionQuestions}
+            questions={resultsQuestions}
             answers={answers}
             onStartOver={handleStartOver}
             runKey={runKey}

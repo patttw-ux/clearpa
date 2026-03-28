@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCheck, Copy } from "lucide-react";
+import { ArrowLeft, CheckCheck, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 import type { PaAnswer } from "@/lib/types/analysis";
@@ -428,9 +428,10 @@ export function ResultsPanel({
           <button
             type="button"
             onClick={onStartOver}
-            className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-transparent px-5 font-display text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline sm:w-auto"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card px-5 font-display text-sm font-medium text-foreground transition-all duration-150 ease-out hover:bg-muted sm:w-auto"
           >
-            Start Over
+            <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+            <span>New PA</span>
           </button>
         </div>
       </div>
