@@ -3,11 +3,15 @@
 import { useMemo, useState } from "react";
 import { Loader2, Lock, Sparkles } from "lucide-react";
 
+import { ResultsPanel } from "@/components/analysis/ResultsPanel";
+import { ThinkingPanel } from "@/components/analysis/ThinkingPanel";
 import { DropZone } from "@/components/upload/DropZone";
 import {
   QuestionnaireInput,
   type QuestionnaireTab,
 } from "@/components/upload/QuestionnaireInput";
+import { useAnalysis } from "@/hooks/useAnalysis";
+import { extractPdfText } from "@/lib/pdf/extractText";
 import { cn } from "@/lib/utils";
 
 export default function NewPAPage() {
@@ -16,7 +20,19 @@ export default function NewPAPage() {
     useState<QuestionnaireTab>("upload");
   const [questionnaireFile, setQuestionnaireFile] = useState<File | null>(null);
   const [questionnaireText, setQuestionnaireText] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [runKey, setRunKey] = useState(0);
+  const [extractBusy, setExtractBusy] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+
+  const {
+    thinkingSteps,
+    answers,
+    isAnalyzing,
+    isComplete,
+    error,
+    elapsedSeconds,
+    startAnalysis,
+  } = useAnalysis();
 
   const canAnalyze = useMemo(() => {
     const hasChart = Boolean(chartFile);
@@ -32,14 +48,44 @@ export default function NewPAPage() {
     questionnaireText,
   ]);
 
-  function handleAnalyze() {
-    if (!canAnalyze || isAnalyzing) return;
-    setIsAnalyzing(true);
-    // Placeholder until API wiring — keeps UI in loading state briefly
-    window.setTimeout(() => {
-      setIsAnalyzing(false);
-    }, 2200);
+  async function handleAnalyze() {
+    if (!canAnalyze || isAnalyzing || extractBusy) return;
+    if (!chartFile) return;
+
+    setExtractBusy(true);
+    setPdfError(null);
+    setRunKey((k) => k + 1);
+
+    try {
+      const chartText = await extractPdfText(chartFile);
+
+      let questions: string | string[];
+      if (questionnaireTab === "upload") {
+        if (!questionnaireFile) return;
+        const qText = await extractPdfText(questionnaireFile);
+        const lines = qText
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        questions = lines.length > 0 ? lines : [qText];
+      } else {
+        const raw = questionnaireText.trim();
+        const lines = raw.split("\n").map((s) => s.trim()).filter(Boolean);
+        questions = lines.length > 0 ? lines : [raw];
+      }
+
+      await startAnalysis(chartText, questions);
+    } catch (e) {
+      console.error(e);
+      setPdfError(
+        e instanceof Error ? e.message : "Could not read PDF or start analysis.",
+      );
+    } finally {
+      setExtractBusy(false);
+    }
   }
+
+  const busy = isAnalyzing || extractBusy;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8 md:px-8 md:py-10">
@@ -82,24 +128,28 @@ export default function NewPAPage() {
       <div className="mx-auto mt-10 flex w-full max-w-xl flex-col items-center">
         <button
           type="button"
-          disabled={!canAnalyze || isAnalyzing}
-          onClick={handleAnalyze}
+          disabled={!canAnalyze || busy}
+          onClick={() => void handleAnalyze()}
           className={cn(
             "flex h-[52px] w-full items-center justify-center gap-2 rounded-xl px-6 font-display text-base font-semibold text-primary-foreground transition-all duration-150",
             "bg-primary shadow-none",
             "hover:bg-primary/90",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-            (!canAnalyze || isAnalyzing) &&
+            (!canAnalyze || busy) &&
               "cursor-not-allowed opacity-45 hover:bg-primary",
           )}
         >
-          {isAnalyzing ? (
+          {busy ? (
             <>
               <Loader2
                 className="h-5 w-5 shrink-0 animate-spin text-primary-foreground/90"
                 aria-hidden
               />
-              <span>Analyzing chart…</span>
+              <span>
+                {extractBusy && !isAnalyzing
+                  ? "Reading PDFs…"
+                  : "Analyzing chart…"}
+              </span>
             </>
           ) : (
             <>
@@ -123,6 +173,26 @@ export default function NewPAPage() {
             training. HIPAA-compliant.
           </span>
         </p>
+      </div>
+
+      {(error || pdfError) && (
+        <div
+          className="mx-auto mt-6 w-full max-w-3xl rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-center text-sm text-destructive"
+          role="alert"
+        >
+          {error ?? pdfError}
+        </div>
+      )}
+
+      <div className="mx-auto mt-8 flex w-full max-w-6xl flex-col gap-6">
+        <ThinkingPanel
+          steps={thinkingSteps}
+          isAnalyzing={isAnalyzing}
+          isComplete={isComplete}
+          elapsedSeconds={elapsedSeconds}
+          runKey={runKey}
+        />
+        <ResultsPanel answers={answers} />
       </div>
     </div>
   );

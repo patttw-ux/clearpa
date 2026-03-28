@@ -61,4 +61,20 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  @keyframes thinking-dot-pulse {
+    0%,
+    100% {
+      transform: scale(0.8);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.2);
+      opacity: 0.85;
+    }
+  }
+
+  .thinking-dot {
+    animation: thinking-dot-pulse 1.5s ease-in-out infinite;
+  }
 }
