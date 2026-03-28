@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 
 import type { ThinkingStep } from "@/lib/types/analysis";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,8 @@ type ThinkingPanelProps = {
   isAnalyzing: boolean;
   isComplete: boolean;
   elapsedSeconds: number;
+  /** True while PDFs are being extracted before the stream (keep panel visible) */
+  isPending?: boolean;
   /** Increment when a new analysis run starts to reset collapse behavior */
   runKey?: number;
   className?: string;
@@ -28,6 +31,7 @@ export function ThinkingPanel({
   isAnalyzing,
   isComplete,
   elapsedSeconds,
+  isPending = false,
   runKey = 0,
   className,
 }: ThinkingPanelProps) {
@@ -61,7 +65,7 @@ export function ThinkingPanel({
     el.scrollTop = el.scrollHeight;
   }, [steps]);
 
-  const showPanel = steps.length > 0 || isAnalyzing;
+  const showPanel = steps.length > 0 || isAnalyzing || isPending;
   if (!showPanel) return null;
 
   return (
@@ -106,23 +110,36 @@ export function ThinkingPanel({
           </div>
         </div>
 
-        {!collapsed && (
-          <div
-            ref={logRef}
-            className="max-h-[280px] overflow-y-auto border-t border-border/70 px-2"
-          >
-            <div className="px-2 pb-2 pt-1">
-              {steps.map((step) => (
-                <ThinkingEntry key={step.id} step={step} />
-              ))}
-              {isAnalyzing && steps.length === 0 && (
-                <p className="py-6 text-center text-sm text-muted-foreground">
-                  Waiting for stream…
-                </p>
-              )}
-            </div>
-          </div>
-        )}
+        <AnimatePresence initial={false}>
+          {!collapsed && (
+            <motion.div
+              key="log"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+              className="overflow-hidden border-t border-border/70"
+            >
+              <div
+                ref={logRef}
+                className="max-h-[280px] overflow-y-auto px-2"
+              >
+                <div className="px-2 pb-2 pt-1">
+                  {steps.map((step) => (
+                    <ThinkingEntry key={step.id} step={step} />
+                  ))}
+                  {(isAnalyzing || isPending) && steps.length === 0 && (
+                    <p className="py-6 text-center text-sm text-muted-foreground">
+                      {isPending && !isAnalyzing
+                        ? "Reading PDFs…"
+                        : "Waiting for stream…"}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </section>
   );

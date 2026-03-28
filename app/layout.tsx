@@ -4,7 +4,7 @@ import { DM_Sans, Inter, JetBrains_Mono } from "next/font/google";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Toaster } from "@/components/ui/toaster";
 
-import "./globals.css";
+import "./layout.css";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],

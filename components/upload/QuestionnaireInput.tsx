@@ -13,6 +13,7 @@ export type QuestionnaireInputProps = {
   onFileChange: (file: File | null) => void;
   pastedText: string;
   onPastedTextChange: (text: string) => void;
+  disabled?: boolean;
   className?: string;
 };
 
@@ -23,12 +24,14 @@ export function QuestionnaireInput({
   onFileChange,
   pastedText,
   onPastedTextChange,
+  disabled = false,
   className,
 }: QuestionnaireInputProps) {
   return (
     <div
       className={cn(
         "rounded-xl border border-border bg-card p-5 shadow-none",
+        disabled && "pointer-events-none opacity-60",
         className,
       )}
     >
@@ -41,6 +44,7 @@ export function QuestionnaireInput({
           type="button"
           role="tab"
           aria-selected={tab === "upload"}
+          disabled={disabled}
           className={cn(
             "relative flex-1 pb-3 pt-1 text-center font-display text-sm font-medium transition-colors duration-150",
             tab === "upload"
@@ -58,6 +62,7 @@ export function QuestionnaireInput({
           type="button"
           role="tab"
           aria-selected={tab === "paste"}
+          disabled={disabled}
           className={cn(
             "relative flex-1 pb-3 pt-1 text-center font-display text-sm font-medium transition-colors duration-150",
             tab === "paste"
@@ -79,6 +84,7 @@ export function QuestionnaireInput({
             id="questionnaire-pdf"
             value={file}
             onChange={onFileChange}
+            disabled={disabled}
           />
         ) : (
           <label className="block">
@@ -86,12 +92,14 @@ export function QuestionnaireInput({
             <textarea
               value={pastedText}
               onChange={(e) => onPastedTextChange(e.target.value)}
+              disabled={disabled}
               placeholder="Paste payer questions here (one section or full questionnaire)…"
               className={cn(
                 "min-h-[220px] w-full resize-y rounded-xl border border-border bg-background px-4 py-3 text-sm leading-relaxed text-foreground",
                 "placeholder:text-muted-foreground/70",
                 "outline-none ring-offset-background transition-shadow duration-150",
                 "focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/30",
+                "disabled:cursor-not-allowed disabled:opacity-60",
               )}
               spellCheck
             />

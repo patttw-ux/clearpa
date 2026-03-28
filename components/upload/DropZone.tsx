@@ -16,10 +16,18 @@ export type DropZoneProps = {
   id?: string;
   value: File | null;
   onChange: (file: File | null) => void;
+  /** Disables drop, file input, and remove */
+  disabled?: boolean;
   className?: string;
 };
 
-export function DropZone({ id, value, onChange, className }: DropZoneProps) {
+export function DropZone({
+  id,
+  value,
+  onChange,
+  disabled = false,
+  className,
+}: DropZoneProps) {
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
       const next = acceptedFiles[0];
@@ -33,11 +41,12 @@ export function DropZone({ id, value, onChange, className }: DropZoneProps) {
     accept: { "application/pdf": [".pdf"] },
     maxFiles: 1,
     multiple: false,
+    disabled,
   });
 
   const remove = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onChange(null);
+    if (!disabled) onChange(null);
   };
 
   if (value) {
@@ -47,6 +56,7 @@ export function DropZone({ id, value, onChange, className }: DropZoneProps) {
           className: cn(
             "flex cursor-pointer items-center justify-between gap-3 rounded-full border border-border bg-card px-4 py-2.5 transition-colors duration-150 hover:border-primary/40 hover:bg-muted/30",
             isDragActive && "scale-[1.01] border-solid border-primary",
+            disabled && "pointer-events-none cursor-not-allowed opacity-60",
             className,
           ),
         })}
@@ -70,7 +80,8 @@ export function DropZone({ id, value, onChange, className }: DropZoneProps) {
         <button
           type="button"
           onClick={remove}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          disabled={disabled}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none"
           aria-label="Remove file"
         >
           <X className="h-4 w-4" />
@@ -86,6 +97,7 @@ export function DropZone({ id, value, onChange, className }: DropZoneProps) {
           "flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-card px-6 py-10 transition-all duration-150 ease-out",
           "hover:border-primary hover:bg-primary/[0.03]",
           isDragActive && "scale-[1.01] border-solid border-primary bg-primary/[0.04]",
+          disabled && "pointer-events-none cursor-not-allowed opacity-60",
           className,
         ),
       })}

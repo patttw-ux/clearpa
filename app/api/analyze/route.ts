@@ -25,17 +25,42 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const chartText = body.chartText?.trim() ?? "";
+  const chartTextRaw = body.chartText;
+  const chartText =
+    typeof chartTextRaw === "string" ? chartTextRaw.trim() : "";
+  console.log(
+    "[/api/analyze] chartText:",
+    chartText.length > 0
+      ? chartText.length > 100
+        ? `${chartText.slice(0, 100)}… (${chartText.length} chars)`
+        : `${chartText} (${chartText.length} chars)`
+      : "EMPTY",
+  );
+
   const questionsRaw = body.questions;
   if (!chartText) {
-    return Response.json({ error: "chartText is required" }, { status: 400 });
+    return Response.json(
+      {
+        error:
+          typeof chartTextRaw === "undefined"
+            ? "chartText is missing from the request body."
+            : "chartText is empty or whitespace only—the patient chart PDF may have no extractable text.",
+      },
+      { status: 400 },
+    );
   }
   if (
     questionsRaw === undefined ||
     (Array.isArray(questionsRaw) && questionsRaw.length === 0) ||
     (typeof questionsRaw === "string" && !questionsRaw.trim())
   ) {
-    return Response.json({ error: "questions is required" }, { status: 400 });
+    return Response.json(
+      {
+        error:
+          "questions is required: provide a non-empty string or string array.",
+      },
+      { status: 400 },
+    );
   }
 
   const questionsBlock = Array.isArray(questionsRaw)

@@ -1,29 +1,35 @@
 /**
- * Extract plain text from a PDF in the browser (pdfjs-dist).
+ * Extract plain text from a PDF via the server-side /api/extract-pdf route.
  */
 export async function extractPdfText(file: File): Promise<string> {
-  const pdfjs = await import("pdfjs-dist");
-  const version = pdfjs.version;
+  const formData = new FormData();
+  formData.append("file", file);
 
-  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+  const res = await fetch("/api/extract-pdf", {
+    method: "POST",
+    body: formData,
+  });
 
-  const data = new Uint8Array(await file.arrayBuffer());
-  const pdf = await pdfjs.getDocument({ data }).promise;
-
-  const parts: string[] = [];
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const line = content.items
-      .map((item) => {
-        if (item && typeof item === "object" && "str" in item) {
-          return (item as { str: string }).str;
-        }
-        return "";
-      })
-      .join(" ");
-    parts.push(line);
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error("Invalid response from PDF extraction service.");
   }
 
-  return parts.join("\n\n").replace(/\s+\n/g, "\n").trim();
+  const parsed = data as { text?: string; error?: string };
+
+  if (!res.ok || parsed.error) {
+    throw new Error(
+      typeof parsed.error === "string" && parsed.error.length > 0
+        ? parsed.error
+        : `PDF extraction failed (${res.status}).`,
+    );
+  }
+
+  if (typeof parsed.text !== "string") {
+    throw new Error("PDF extraction returned no text.");
+  }
+
+  return parsed.text.replace(/\s+\n/g, "\n").trim();
 }

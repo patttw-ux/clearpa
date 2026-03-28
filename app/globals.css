@@ -77,4 +77,36 @@
   .thinking-dot {
     animation: thinking-dot-pulse 1.5s ease-in-out infinite;
   }
+
+  @keyframes analysis-progress-shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(350%);
+    }
+  }
+
+  .analysis-progress-track {
+    @apply relative h-1 w-full overflow-hidden rounded-full bg-muted;
+  }
+
+  .analysis-progress-shimmer-bar {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 45%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--primary) / 0.35),
+      hsl(var(--primary) / 0.85),
+      hsl(var(--primary) / 0.35),
+      transparent
+    );
+    animation: analysis-progress-shimmer 1.35s ease-in-out infinite;
+  }
+
+  .analysis-progress-success {
+    @apply h-full w-full rounded-full bg-accent;
+  }
 }

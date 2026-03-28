@@ -114,10 +114,14 @@ export function useAnalysis() {
     abortRef.current = ac;
 
     try {
+      const payload = {
+        chartText: typeof chartText === "string" ? chartText : "",
+        questions,
+      };
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chartText, questions }),
+        body: JSON.stringify(payload),
         signal: ac.signal,
       });
 
