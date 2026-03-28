@@ -50,7 +50,17 @@ function answerFromPayload(payload: Record<string, unknown>): PaAnswer | null {
   if (typeof answer !== "string") return null;
   if (confidence !== "high" && confidence !== "medium" && confidence !== "low")
     return null;
-  return { questionIndex, status, answer, confidence };
+  const suggestedAction =
+    typeof payload.suggestedAction === "string"
+      ? payload.suggestedAction
+      : undefined;
+  return {
+    questionIndex,
+    status,
+    answer,
+    confidence,
+    ...(suggestedAction !== undefined ? { suggestedAction } : {}),
+  };
 }
 
 export function useAnalysis() {

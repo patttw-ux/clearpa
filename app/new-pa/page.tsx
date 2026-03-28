@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Loader2, Lock, Sparkles } from "lucide-react";
 
-import { ResultsPanel } from "@/components/analysis/ResultsPanel";
+import { ResultsPanel } from "@/components/results/ResultsPanel";
 import { ThinkingPanel } from "@/components/analysis/ThinkingPanel";
 import { DropZone } from "@/components/upload/DropZone";
 import {
@@ -23,6 +23,7 @@ export default function NewPAPage() {
   const [runKey, setRunKey] = useState(0);
   const [extractBusy, setExtractBusy] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [sessionQuestions, setSessionQuestions] = useState<string[]>([]);
 
   const {
     thinkingSteps,
@@ -32,6 +33,7 @@ export default function NewPAPage() {
     error,
     elapsedSeconds,
     startAnalysis,
+    reset,
   } = useAnalysis();
 
   const canAnalyze = useMemo(() => {
@@ -74,6 +76,9 @@ export default function NewPAPage() {
         questions = lines.length > 0 ? lines : [raw];
       }
 
+      const qList = Array.isArray(questions) ? questions : [questions];
+      setSessionQuestions(qList);
+
       await startAnalysis(chartText, questions);
     } catch (e) {
       console.error(e);
@@ -83,6 +88,17 @@ export default function NewPAPage() {
     } finally {
       setExtractBusy(false);
     }
+  }
+
+  function handleStartOver() {
+    reset();
+    setSessionQuestions([]);
+    setChartFile(null);
+    setQuestionnaireFile(null);
+    setQuestionnaireText("");
+    setQuestionnaireTab("upload");
+    setPdfError(null);
+    setRunKey((k) => k + 1);
   }
 
   const busy = isAnalyzing || extractBusy;
@@ -192,7 +208,12 @@ export default function NewPAPage() {
           elapsedSeconds={elapsedSeconds}
           runKey={runKey}
         />
-        <ResultsPanel answers={answers} />
+        <ResultsPanel
+          isComplete={isComplete}
+          questions={sessionQuestions}
+          answers={answers}
+          onStartOver={handleStartOver}
+        />
       </div>
     </div>
   );

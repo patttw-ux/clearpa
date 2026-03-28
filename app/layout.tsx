@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DM_Sans, Inter, JetBrains_Mono } from "next/font/google";
 
 import { Sidebar } from "@/components/layout/Sidebar";
+import { Toaster } from "@/components/ui/toaster";
 
 import "./globals.css";
 
@@ -47,6 +48,7 @@ export default function RootLayout({
             {children}
           </main>
         </div>
+        <Toaster />
       </body>
     </html>
   );

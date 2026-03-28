@@ -22,4 +22,6 @@ export type PaAnswer = {
   status: PaAnswerStatus;
   answer: string;
   confidence: "high" | "medium" | "low";
+  /** Optional follow-up line for warning status (e.g. suggested action). */
+  suggestedAction?: string;
 };
