@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { DM_Sans, Inter, JetBrains_Mono } from "next/font/google";
+
+import { Sidebar } from "@/components/layout/Sidebar";
+
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -38,7 +41,12 @@ export default function RootLayout({
       <body
         className={`${dmSans.variable} ${inter.variable} ${jetbrainsMono.variable} font-sans`}
       >
-        {children}
+        <div className="flex h-screen min-h-0 overflow-hidden bg-background">
+          <Sidebar />
+          <main className="min-h-0 flex-1 overflow-y-auto bg-background">
+            {children}
+          </main>
+        </div>
       </body>
     </html>
   );
