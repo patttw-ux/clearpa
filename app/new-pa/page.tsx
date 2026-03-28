@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import confetti from "canvas-confetti";
 import { motion } from "framer-motion";
 import { AlertCircle, Loader2, Lock, Sparkles } from "lucide-react";
 
 import { ResultsPanel } from "@/components/results/ResultsPanel";
+import { SaveSessionDialog } from "@/components/sessions/SaveSessionDialog";
 import { ThinkingPanel } from "@/components/analysis/ThinkingPanel";
 import { DropZone } from "@/components/upload/DropZone";
 import {
@@ -16,6 +17,7 @@ import { useAnalysis } from "@/hooks/useAnalysis";
 import { useWorkflow, type WorkflowState } from "@/hooks/useWorkflow";
 import { DEMO_CHART_TEXT, DEMO_QUESTIONS } from "@/lib/demo-data";
 import { extractPdfText } from "@/lib/pdf/extractText";
+import type { SessionSavePayload } from "@/lib/types/pa-session";
 import { cn } from "@/lib/utils";
 
 function AnalysisProgressBar({
@@ -57,6 +59,9 @@ export default function NewPAPage() {
   const [progressMode, setProgressMode] = useState<
     "hidden" | "indeterminate" | "success"
   >("hidden");
+  const [saveSessionOpen, setSaveSessionOpen] = useState(false);
+  const [saveSessionPayload, setSaveSessionPayload] =
+    useState<SessionSavePayload | null>(null);
 
   const confettiRunRef = useRef<number | null>(null);
 
@@ -148,6 +153,23 @@ export default function NewPAPage() {
     questionnaireFile,
     questionnaireText,
   ]);
+
+  const saveSummary = useMemo(() => {
+    let answered = 0;
+    let flagged = 0;
+    let warning = 0;
+    for (const a of answers) {
+      if (a.status === "answered") answered += 1;
+      else if (a.status === "flagged") flagged += 1;
+      else if (a.status === "warning") warning += 1;
+    }
+    return { answered, flagged, warning };
+  }, [answers]);
+
+  const handleSaveSession = useCallback((payload: SessionSavePayload) => {
+    setSaveSessionPayload(payload);
+    setSaveSessionOpen(true);
+  }, []);
 
   const uploadsLocked = state === "analyzing";
 
@@ -462,9 +484,19 @@ export default function NewPAPage() {
             questions={sessionQuestions}
             answers={answers}
             onStartOver={handleStartOver}
+            runKey={runKey}
+            autoPromptSave={state === "complete"}
+            onSaveSession={handleSaveSession}
           />
         </div>
       )}
+
+      <SaveSessionDialog
+        open={saveSessionOpen}
+        onOpenChange={setSaveSessionOpen}
+        payload={saveSessionPayload}
+        summary={saveSummary}
+      />
     </div>
   );
 }

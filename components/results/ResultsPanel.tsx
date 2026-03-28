@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
 import type { PaAnswer } from "@/lib/types/analysis";
+import type { SessionSavePayload } from "@/lib/types/pa-session";
 import { cn } from "@/lib/utils";
 
 import { AnswerCard } from "./AnswerCard";
@@ -14,6 +15,12 @@ type ResultsPanelProps = {
   questions: string[];
   answers: PaAnswer[];
   onStartOver: () => void;
+  /** Increment when a new run finishes — resets auto-save prompt */
+  runKey: number;
+  /** When true, opens save flow once per run after results are ready */
+  autoPromptSave?: boolean;
+  /** Called for auto prompt and manual "Save session" */
+  onSaveSession?: (payload: SessionSavePayload) => void;
   className?: string;
 };
 
@@ -22,15 +29,23 @@ export function ResultsPanel({
   questions,
   answers,
   onStartOver,
+  runKey,
+  autoPromptSave = false,
+  onSaveSession,
   className,
 }: ResultsPanelProps) {
   const [overrides, setOverrides] = useState<Record<number, string>>({});
+  const autoFiredRef = useRef(false);
 
   useEffect(() => {
     if (!isComplete) {
       setOverrides({});
     }
   }, [isComplete]);
+
+  useEffect(() => {
+    autoFiredRef.current = false;
+  }, [runKey]);
 
   const summary = useMemo(() => {
     let answered = 0;
@@ -59,6 +74,22 @@ export function ResultsPanel({
     },
     [overrides],
   );
+
+  const buildPayload = useCallback((): SessionSavePayload => {
+    const bodyByIndex: Record<number, string> = {};
+    questions.forEach((_, i) => {
+      const data = answers.find((a) => a.questionIndex === i) ?? null;
+      bodyByIndex[i] = getBodyText(i, data);
+    });
+    return { questions, answers, bodyByIndex };
+  }, [answers, getBodyText, questions]);
+
+  useEffect(() => {
+    if (!isComplete || !autoPromptSave || !onSaveSession) return;
+    if (autoFiredRef.current) return;
+    autoFiredRef.current = true;
+    onSaveSession(buildPayload());
+  }, [autoPromptSave, buildPayload, isComplete, onSaveSession]);
 
   const copyAll = useCallback(async () => {
     const lines: string[] = [];
@@ -159,6 +190,15 @@ export function ResultsPanel({
           >
             Export as PDF
           </button>
+          {onSaveSession && (
+            <button
+              type="button"
+              onClick={() => onSaveSession(buildPayload())}
+              className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-border bg-transparent px-5 font-display text-sm font-medium text-foreground hover:bg-muted sm:w-auto"
+            >
+              Save session
+            </button>
+          )}
           <button
             type="button"
             onClick={onStartOver}
