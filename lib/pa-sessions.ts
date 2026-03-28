@@ -31,6 +31,31 @@ export async function saveSession(data: SaveSessionInput): Promise<{ id: string 
   return { id: row.id as string };
 }
 
+/** Row for analytics aggregations (no limit). */
+export type AnalyticsSessionRow = {
+  id: string;
+  patient_initials: string | null;
+  status: SessionStatus | null;
+  answered_count: number | null;
+  flagged_count: number | null;
+  questions_count: number | null;
+  payer_name: string | null;
+  drug_name: string | null;
+  created_at: string;
+};
+
+export async function fetchAnalyticsSessions(): Promise<AnalyticsSessionRow[]> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("pa_sessions")
+    .select(
+      "id, patient_initials, status, answered_count, flagged_count, questions_count, payer_name, drug_name, created_at",
+    );
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as AnalyticsSessionRow[];
+}
+
 export async function getSessions(): Promise<PaSessionRow[]> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase
