@@ -91,10 +91,10 @@ export function DropZone({
           <p className="text-xs text-muted-foreground">
             {formatFileSize(value.size)}
           </p>
-          {pageCount != null && pageCount > 0 ? (
-            <p className="text-xs text-muted-foreground font-mono">
-              {pageCount === 1 ? "1 page" : `${pageCount} pages`}
-            </p>
+          {pageCount && pageCount > 0 ? (
+            <span className="text-xs text-muted-foreground font-mono">
+              {pageCount} {pageCount === 1 ? "page" : "pages"}
+            </span>
           ) : null}
         </div>
       </div>

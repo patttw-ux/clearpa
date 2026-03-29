@@ -1,6 +1,14 @@
 /**
  * Client-side PDF text extraction for payer detection (browser only).
  */
+export async function countPdfPages(file: File): Promise<number> {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  const text = new TextDecoder("latin1").decode(bytes);
+  const matches = text.match(/\/Type\s*\/Page[^s]/g);
+  return matches ? matches.length : 0;
+}
+
 export async function extractTextFromPDF(file: File): Promise<string> {
   const { getDocument, GlobalWorkerOptions, version } = await import(
     "pdfjs-dist"

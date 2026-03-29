@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
   Building2,
+  Clock3,
   Loader2,
   Lock,
   Sparkles,
@@ -24,7 +25,10 @@ import { useAnalysis } from "@/hooks/useAnalysis";
 import { useWorkflow, type WorkflowState } from "@/hooks/useWorkflow";
 import { DEMO_CHART_TEXT, DEMO_QUESTIONS } from "@/lib/demo-data";
 import { detectPayer, detectPayerFromFilename } from "@/lib/payer-detector";
-import { extractPdfViaApi } from "@/lib/pdf/extractPdfApi";
+import {
+  countPdfPages,
+  extractTextFromPDF,
+} from "@/lib/pdf/extractText";
 import type { SessionSavePayload } from "@/lib/types/pa-session";
 import { cn } from "@/lib/utils";
 
@@ -159,43 +163,33 @@ export default function NewPAPage() {
   }, [questionnaireTab, questionnaireText]);
 
   useEffect(() => {
-    if (!chartFile) {
+    if (chartFile) {
+      countPdfPages(chartFile).then(setChartPages);
+    } else {
       setChartPages(null);
-      return;
     }
-    let cancelled = false;
-    void (async () => {
-      try {
-        const { pages } = await extractPdfViaApi(chartFile);
-        if (cancelled) return;
-        setChartPages(pages > 0 ? pages : null);
-      } catch {
-        if (!cancelled) setChartPages(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
   }, [chartFile]);
 
   useEffect(() => {
-    if (questionnaireTab !== "upload") {
+    if (questionnaireFile) {
+      countPdfPages(questionnaireFile).then(setQuestionnairePages);
+    } else {
       setQuestionnairePages(null);
-      return;
     }
+  }, [questionnaireFile]);
+
+  useEffect(() => {
+    if (questionnaireTab !== "upload") return;
     if (!questionnaireFile) {
       setDetectedPayer(null);
-      setQuestionnairePages(null);
       return;
     }
     setDetectedPayer(detectPayerFromFilename(questionnaireFile.name));
     let cancelled = false;
     void (async () => {
       try {
-        const { text: extractedText, pages } =
-          await extractPdfViaApi(questionnaireFile);
+        const extractedText = await extractTextFromPDF(questionnaireFile);
         if (cancelled) return;
-        setQuestionnairePages(pages > 0 ? pages : null);
         const payerFromText = detectPayer(extractedText);
         const payerFromFile = detectPayerFromFilename(questionnaireFile.name);
         setDetectedPayer(payerFromText ?? payerFromFile);
@@ -204,7 +198,6 @@ export default function NewPAPage() {
           setDetectedPayer(
             detectPayerFromFilename(questionnaireFile.name),
           );
-          setQuestionnairePages(null);
         }
       }
     })();
@@ -247,6 +240,28 @@ export default function NewPAPage() {
     questionnaireTab,
     questionnaireFile,
   ]);
+
+  const estimatedSeconds = useMemo(() => {
+    if (chartPages === null) return null;
+    const base = 20;
+    const fromChart = chartPages * 5;
+    const fromQuestionnaire = (questionnairePages || 2) * 3;
+    const total = base + fromChart + fromQuestionnaire;
+    return Math.round(total / 5) * 5;
+  }, [chartPages, questionnairePages]);
+
+  useEffect(() => {
+    console.log("[estimate]", {
+      chartPages,
+      questionnairePages,
+      estimatedSeconds,
+    });
+  }, [chartPages, questionnairePages, estimatedSeconds]);
+
+  const formatEstimate = (secs: number) =>
+    secs >= 60
+      ? `~${Math.round(secs / 60)} min`
+      : `~${secs} sec`;
 
   const saveSummary = useMemo(() => {
     let answered = 0;
@@ -616,6 +631,28 @@ export default function NewPAPage() {
             >
               <div className="mx-auto w-full max-w-4xl">{analyzeButton}</div>
             </div>
+
+            <AnimatePresence>
+              {estimatedSeconds !== null && !isComplete && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  transition={{ duration: 0.2 }}
+                  className="mt-4 flex items-center justify-center gap-1.5 text-xs text-muted-foreground"
+                >
+                  <Clock3 className="h-3 w-3" />
+                  {isAnalyzing ? (
+                    <span>
+                      Analyzing... this may take{" "}
+                      {formatEstimate(estimatedSeconds)}
+                    </span>
+                  ) : (
+                    <span>Estimated: {formatEstimate(estimatedSeconds)}</span>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {state === "idle" && (
               <div className="mt-6 flex justify-center">
