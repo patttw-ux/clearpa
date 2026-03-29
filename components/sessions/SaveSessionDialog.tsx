@@ -23,6 +23,37 @@ const DRUGS = ["Xiidra", "Cequa", "Other"] as const;
 type payerChoice = (typeof PAYERS)[number];
 type drugChoice = (typeof DRUGS)[number];
 
+function resolvePayerFromDefault(
+  raw: string | null | undefined,
+): { payer: payerChoice; payerOther: string } {
+  if (!raw?.trim()) {
+    return { payer: "UHC", payerOther: "" };
+  }
+  const t = raw.trim();
+  if ((PAYERS as readonly string[]).includes(t) && t !== "Other") {
+    return { payer: t as payerChoice, payerOther: "" };
+  }
+  const low = t.toLowerCase();
+  if (
+    low.includes("united") ||
+    low.includes("uhc") ||
+    low.includes("optum")
+  ) {
+    return { payer: "UHC", payerOther: "" };
+  }
+  if (
+    low.includes("blue cross") ||
+    low.includes("blue shield") ||
+    low.includes("bcbs")
+  ) {
+    return { payer: "BCBS", payerOther: "" };
+  }
+  if (low.includes("cigna")) return { payer: "Cigna", payerOther: "" };
+  if (low.includes("aetna")) return { payer: "Aetna", payerOther: "" };
+  if (low.includes("humana")) return { payer: "Humana", payerOther: "" };
+  return { payer: "Other", payerOther: t };
+}
+
 type SaveSessionDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -32,6 +63,8 @@ type SaveSessionDialogProps = {
     flagged: number;
     warning: number;
   };
+  /** Auto-detected payer label from questionnaire text (optional). */
+  defaultPayer?: string | null;
 };
 
 export function SaveSessionDialog({
@@ -39,6 +72,7 @@ export function SaveSessionDialog({
   onOpenChange,
   payload,
   summary,
+  defaultPayer,
 }: SaveSessionDialogProps) {
   const [initials, setInitials] = useState("");
   const [payer, setPayer] = useState<payerChoice>("UHC");
@@ -50,11 +84,12 @@ export function SaveSessionDialog({
   useEffect(() => {
     if (!open) return;
     setInitials("");
-    setPayer("UHC");
-    setPayerOther("");
+    const { payer, payerOther } = resolvePayerFromDefault(defaultPayer);
+    setPayer(payer);
+    setPayerOther(payerOther);
     setDrug("Cequa");
     setDrugOther("");
-  }, [open, payload]);
+  }, [open, payload, defaultPayer]);
 
   const payerResolved = payer === "Other" ? payerOther.trim() : payer;
   const drugResolved = drug === "Other" ? drugOther.trim() : drug;

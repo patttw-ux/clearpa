@@ -19,6 +19,8 @@ export type QuestionnaireInputProps = {
   variant?: "default" | "clinical";
   /** Parent renders remove on card; hide DropZone remove */
   hideRemoveOnDropZone?: boolean;
+  /** PDF page count from extraction; shown on uploaded file card */
+  pageCount?: number | null;
 };
 
 export function QuestionnaireInput({
@@ -32,6 +34,7 @@ export function QuestionnaireInput({
   className,
   variant = "default",
   hideRemoveOnDropZone = false,
+  pageCount = null,
 }: QuestionnaireInputProps) {
   const clinical = variant === "clinical";
 
@@ -131,6 +134,7 @@ export function QuestionnaireInput({
             onChange={onFileChange}
             disabled={disabled}
             hideRemoveButton={hideRemoveOnDropZone}
+            pageCount={pageCount}
             className={clinical ? "flex-1" : undefined}
           />
         ) : (

@@ -21,6 +21,8 @@ export type DropZoneProps = {
   className?: string;
   /** When true, no remove control (parent places control on the card) */
   hideRemoveButton?: boolean;
+  /** Shown below file size when greater than 0 */
+  pageCount?: number | null;
 };
 
 export function DropZone({
@@ -30,6 +32,7 @@ export function DropZone({
   disabled = false,
   className,
   hideRemoveButton = false,
+  pageCount = null,
 }: DropZoneProps) {
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
@@ -88,6 +91,11 @@ export function DropZone({
           <p className="text-xs text-muted-foreground">
             {formatFileSize(value.size)}
           </p>
+          {pageCount != null && pageCount > 0 ? (
+            <p className="text-xs text-muted-foreground font-mono">
+              {pageCount === 1 ? "1 page" : `${pageCount} pages`}
+            </p>
+          ) : null}
         </div>
       </div>
     );

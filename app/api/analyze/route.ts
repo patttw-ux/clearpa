@@ -1,14 +1,123 @@
+import { createHash } from "crypto";
+
 import Anthropic from "@anthropic-ai/sdk";
 import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
 
+import { parsePdfBuffer } from "@/lib/pdf/parsePdfBuffer";
 import { CLEARPA_ANALYZE_SYSTEM_PROMPT } from "@/lib/prompts/analyze-system";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+/** In-memory session cache: model output text keyed by chart snippet + questions hash */
+const analysisCache = new Map<string, string>();
+const MAX_ANALYSIS_CACHE = 20;
+
+function analysisCachePut(key: string, value: string) {
+  if (analysisCache.has(key)) {
+    analysisCache.set(key, value);
+    return;
+  }
+  if (analysisCache.size >= MAX_ANALYSIS_CACHE) {
+    const oldest = analysisCache.keys().next().value;
+    if (oldest !== undefined) analysisCache.delete(oldest);
+  }
+  analysisCache.set(key, value);
+}
+
+async function buildAnalysisCacheKey(
+  chartBuffer: Buffer,
+  questions: string[],
+): Promise<string> {
+  let chartPrefix: string;
+  try {
+    const ab = chartBuffer.buffer.slice(
+      chartBuffer.byteOffset,
+      chartBuffer.byteOffset + chartBuffer.byteLength,
+    );
+    const { text } = await parsePdfBuffer(ab as ArrayBuffer);
+    chartPrefix = Array.from(text).slice(0, 500).join("");
+  } catch {
+    chartPrefix = chartBuffer
+      .subarray(0, Math.min(500, chartBuffer.length))
+      .toString("utf8");
+  }
+  const questionsJoined = questions.join("\n");
+  return createHash("sha256")
+    .update(chartPrefix + questionsJoined)
+    .digest("hex");
+}
+
+function createFlushLine(
+  encoder: TextEncoder,
+  controller: ReadableStreamDefaultController<Uint8Array>,
+) {
+  return (raw: string) => {
+    const line = raw.trim();
+    if (!line) return;
+
+    if (line.startsWith("[THINK]")) {
+      const jsonStr = line.slice(7).trim();
+      try {
+        const payload = JSON.parse(jsonStr) as Record<string, unknown>;
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({ kind: "thinking", payload })}\n\n`,
+          ),
+        );
+      } catch {
+        /* ignore malformed line */
+      }
+    } else if (line.startsWith("[ANSWER]")) {
+      const jsonStr = line.slice(8).trim();
+      try {
+        const payload = JSON.parse(jsonStr) as Record<string, unknown>;
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({ kind: "answer", payload })}\n\n`,
+          ),
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+}
+
+function streamSseFromModelText(
+  fullText: string,
+  controller: ReadableStreamDefaultController<Uint8Array>,
+) {
+  const encoder = new TextEncoder();
+  const flushLine = createFlushLine(encoder, controller);
+  let lineBuffer = "";
+
+  lineBuffer += fullText;
+  let nl: number;
+  while ((nl = lineBuffer.indexOf("\n")) !== -1) {
+    const complete = lineBuffer.slice(0, nl);
+    lineBuffer = lineBuffer.slice(nl + 1);
+    flushLine(complete);
+  }
+  if (lineBuffer.trim()) {
+    flushLine(lineBuffer);
+  }
+
+  controller.enqueue(
+    encoder.encode(`data: ${JSON.stringify({ kind: "done" })}\n\n`),
+  );
+  controller.close();
+}
+
 function formatQuestionsList(items: string[]): string {
   return items.map((q, i) => `[${i}] ${q.trim()}`).join("\n");
 }
+
+const sseHeaders = {
+  "Content-Type": "text/event-stream; charset=utf-8",
+  "Cache-Control": "no-cache, no-transform",
+  Connection: "keep-alive",
+} as const;
 
 export async function POST(req: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -116,6 +225,31 @@ export async function POST(req: Request) {
   }
 
   const chartBuffer = Buffer.from(await chartFile.arrayBuffer());
+  const cacheKey = await buildAnalysisCacheKey(chartBuffer, questionsParsed);
+  const cached = analysisCache.get(cacheKey);
+  if (cached !== undefined) {
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          try {
+            streamSseFromModelText(cached, controller);
+          } catch (e) {
+            const encoder = new TextEncoder();
+            const message =
+              e instanceof Error ? e.message : "Analysis failed unexpectedly";
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ kind: "error", message })}\n\n`,
+              ),
+            );
+            controller.close();
+          }
+        },
+      }),
+      { headers: sseHeaders },
+    );
+  }
+
   const chartB64 = chartBuffer.toString("base64");
 
   let questionnaireB64: string | null = null;
@@ -190,52 +324,26 @@ Follow the system output format exactly.`;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const encoder = new TextEncoder();
+      const flushLine = createFlushLine(encoder, controller);
       let lineBuffer = "";
-
-      const flushLine = (raw: string) => {
-        const line = raw.trim();
-        if (!line) return;
-
-        if (line.startsWith("[THINK]")) {
-          const jsonStr = line.slice(7).trim();
-          try {
-            const payload = JSON.parse(jsonStr) as Record<string, unknown>;
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ kind: "thinking", payload })}\n\n`,
-              ),
-            );
-          } catch {
-            /* ignore malformed line */
-          }
-        } else if (line.startsWith("[ANSWER]")) {
-          const jsonStr = line.slice(8).trim();
-          try {
-            const payload = JSON.parse(jsonStr) as Record<string, unknown>;
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ kind: "answer", payload })}\n\n`,
-              ),
-            );
-          } catch {
-            /* ignore */
-          }
-        }
-      };
 
       try {
         const anthropicStream = await anthropic.messages.create({
           model,
           max_tokens: 4000,
+          temperature: 0,
           stream: true,
           system: CLEARPA_ANALYZE_SYSTEM_PROMPT,
           messages: [{ role: "user", content: userContent }],
         });
 
+        let fullAssistantText = "";
+
         for await (const event of anthropicStream) {
           if (event.type === "content_block_delta") {
             const d = event.delta;
             if (d.type === "text_delta" && d.text) {
+              fullAssistantText += d.text;
               lineBuffer += d.text;
               let nl: number;
               while ((nl = lineBuffer.indexOf("\n")) !== -1) {
@@ -250,6 +358,8 @@ Follow the system output format exactly.`;
         if (lineBuffer.trim()) {
           flushLine(lineBuffer);
         }
+
+        analysisCachePut(cacheKey, fullAssistantText);
 
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ kind: "done" })}\n\n`),
@@ -269,10 +379,6 @@ Follow the system output format exactly.`;
   });
 
   return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    },
+    headers: sseHeaders,
   });
 }

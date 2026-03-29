@@ -2,8 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import confetti from "canvas-confetti";
-import { motion } from "framer-motion";
-import { AlertCircle, Loader2, Lock, Sparkles, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  AlertCircle,
+  Building2,
+  Loader2,
+  Lock,
+  Sparkles,
+  X,
+} from "lucide-react";
 
 import { ResultsPanel } from "@/components/results/ResultsPanel";
 import { SaveSessionDialog } from "@/components/sessions/SaveSessionDialog";
@@ -16,6 +23,8 @@ import {
 import { useAnalysis } from "@/hooks/useAnalysis";
 import { useWorkflow, type WorkflowState } from "@/hooks/useWorkflow";
 import { DEMO_CHART_TEXT, DEMO_QUESTIONS } from "@/lib/demo-data";
+import { detectPayer, detectPayerFromFilename } from "@/lib/payer-detector";
+import { extractPdfViaApi } from "@/lib/pdf/extractPdfApi";
 import type { SessionSavePayload } from "@/lib/types/pa-session";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +70,11 @@ export default function NewPAPage() {
   const [saveSessionOpen, setSaveSessionOpen] = useState(false);
   const [saveSessionPayload, setSaveSessionPayload] =
     useState<SessionSavePayload | null>(null);
+  const [detectedPayer, setDetectedPayer] = useState<string | null>(null);
+  const [chartPages, setChartPages] = useState<number | null>(null);
+  const [questionnairePages, setQuestionnairePages] = useState<number | null>(
+    null,
+  );
 
   const confettiRunRef = useRef<number | null>(null);
 
@@ -138,6 +152,66 @@ export default function NewPAPage() {
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
   }, [state, runKey]);
+
+  useEffect(() => {
+    if (questionnaireTab !== "paste") return;
+    setDetectedPayer(detectPayer(questionnaireText));
+  }, [questionnaireTab, questionnaireText]);
+
+  useEffect(() => {
+    if (!chartFile) {
+      setChartPages(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { pages } = await extractPdfViaApi(chartFile);
+        if (cancelled) return;
+        setChartPages(pages > 0 ? pages : null);
+      } catch {
+        if (!cancelled) setChartPages(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [chartFile]);
+
+  useEffect(() => {
+    if (questionnaireTab !== "upload") {
+      setQuestionnairePages(null);
+      return;
+    }
+    if (!questionnaireFile) {
+      setDetectedPayer(null);
+      setQuestionnairePages(null);
+      return;
+    }
+    setDetectedPayer(detectPayerFromFilename(questionnaireFile.name));
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { text: extractedText, pages } =
+          await extractPdfViaApi(questionnaireFile);
+        if (cancelled) return;
+        setQuestionnairePages(pages > 0 ? pages : null);
+        const payerFromText = detectPayer(extractedText);
+        const payerFromFile = detectPayerFromFilename(questionnaireFile.name);
+        setDetectedPayer(payerFromText ?? payerFromFile);
+      } catch {
+        if (!cancelled) {
+          setDetectedPayer(
+            detectPayerFromFilename(questionnaireFile.name),
+          );
+          setQuestionnairePages(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [questionnaireTab, questionnaireFile]);
 
   const canAnalyze = useMemo(() => {
     const hasChart = Boolean(chartFile);
@@ -240,7 +314,9 @@ export default function NewPAPage() {
     setRunKey((k) => k + 1);
     setSessionQuestions([...DEMO_QUESTIONS]);
     setQuestionnaireTab("paste");
-    setQuestionnaireText(DEMO_QUESTIONS.join("\n"));
+    const demoText = DEMO_QUESTIONS.join("\n");
+    setQuestionnaireText(demoText);
+    setDetectedPayer(detectPayer(demoText));
     setQuestionnaireFile(null);
     setChartFile(
       new File([DEMO_CHART_TEXT], "demo-chart-synthetic.pdf", {
@@ -260,6 +336,9 @@ export default function NewPAPage() {
     setQuestionnaireText("");
     setQuestionnaireTab("upload");
     setRunKey((k) => k + 1);
+    setDetectedPayer(null);
+    setChartPages(null);
+    setQuestionnairePages(null);
   }
 
   function handleTryAgain() {
@@ -415,6 +494,7 @@ export default function NewPAPage() {
                   onChange={setChartFile}
                   disabled={uploadsLocked}
                   hideRemoveButton
+                  pageCount={chartPages}
                   className="relative z-[1] flex flex-1 flex-col"
                 />
               </div>
@@ -482,11 +562,40 @@ export default function NewPAPage() {
                   disabled={uploadsLocked}
                   variant="clinical"
                   hideRemoveOnDropZone
+                  pageCount={questionnairePages}
                 />
               </div>
             </motion.section>
           </motion.div>
         )}
+
+        <AnimatePresence mode="wait">
+          {showAnalyzeRow && detectedPayer ? (
+            <motion.div
+              key="detected-payer"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="mt-6 flex justify-center"
+            >
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5">
+                <Building2
+                  className="h-3.5 w-3.5 shrink-0 text-primary"
+                  strokeWidth={2}
+                  aria-hidden
+                />
+                <span className="text-sm font-medium text-foreground">
+                  Detected: {detectedPayer}
+                </span>
+                <span
+                  className="inline-block h-2 w-2 shrink-0 rounded-full bg-accent"
+                  aria-hidden
+                />
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
 
         {showAnalyzeRow && (
           <motion.div
@@ -604,6 +713,7 @@ export default function NewPAPage() {
         onOpenChange={setSaveSessionOpen}
         payload={saveSessionPayload}
         summary={saveSummary}
+        defaultPayer={detectedPayer ?? undefined}
       />
     </div>
   );
