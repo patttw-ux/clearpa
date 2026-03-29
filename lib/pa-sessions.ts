@@ -95,6 +95,14 @@ export async function updateSessionStatus(
   if (error) throw new Error(error.message);
 }
 
+export async function deleteSessions(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.from("pa_sessions").delete().in("id", ids);
+
+  if (error) throw new Error(error.message);
+}
+
 /** Normalize JSONB session_data from DB */
 export function parseSessionData(raw: unknown): PaSessionData | null {
   if (!raw || typeof raw !== "object") return null;

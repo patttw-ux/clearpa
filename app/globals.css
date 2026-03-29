@@ -283,4 +283,17 @@
   .analysis-progress-success {
     @apply h-full w-full rounded-full bg-accent;
   }
+
+  @keyframes results-completion-ring-fill {
+    from {
+      stroke-dashoffset: var(--ring-circ);
+    }
+    to {
+      stroke-dashoffset: var(--ring-target);
+    }
+  }
+
+  .results-completion-ring-progress {
+    animation: results-completion-ring-fill 800ms ease-out forwards;
+  }
 }

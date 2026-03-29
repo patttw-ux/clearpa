@@ -7,7 +7,6 @@ import {
   Bar,
   BarChart,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -348,7 +347,6 @@ function TimelineRowSkeleton() {
 }
 
 const PRIMARY = "hsl(var(--primary))";
-const PRIMARY_FILL = "hsl(var(--primary) / 0.15)";
 
 export default function AnalyticsPage() {
   const [rows, setRows] = useState<AnalyticsSessionRow[] | null>(null);
@@ -523,8 +521,8 @@ export default function AnalyticsPage() {
             </article>
           </div>
 
-          <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-5 lg:gap-10">
-            <section className="rounded-xl border border-border bg-card p-6 lg:col-span-3">
+          <div className="mt-10 grid grid-cols-1 items-stretch gap-8 lg:grid-cols-5 lg:gap-10">
+            <section className="flex h-full min-h-0 flex-col rounded-xl border border-border bg-card p-6 lg:col-span-3">
               <h2 className="font-display text-base font-semibold text-foreground">
                 By Payer
               </h2>
@@ -534,7 +532,7 @@ export default function AnalyticsPage() {
                   breakdowns.
                 </p>
               ) : (
-                <div className="mt-4 h-[220px] w-full">
+                <div className="mt-4 h-[220px] w-full overflow-visible">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={stats.barData}
@@ -583,7 +581,7 @@ export default function AnalyticsPage() {
               )}
             </section>
 
-            <section className="rounded-xl border border-border bg-card p-6 lg:col-span-2">
+            <section className="flex h-full min-h-[380px] flex-col rounded-xl border border-border bg-card p-6 lg:col-span-2">
               <h2 className="font-display text-base font-semibold text-foreground">
                 By Drug
               </h2>
@@ -592,18 +590,19 @@ export default function AnalyticsPage() {
                   No session data yet.
                 </p>
               ) : (
-                <div className="relative mt-4 h-[220px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                <>
+                  <div className="relative mx-auto mt-4 h-[220px] w-[220px] shrink-0 overflow-visible">
+                    <PieChart width={220} height={220}>
                       <Pie
                         data={stats.pieData}
                         dataKey="value"
                         nameKey="name"
-                        cx="50%"
-                        cy="42%"
-                        innerRadius={60}
-                        outerRadius={90}
+                        cx={110}
+                        cy={110}
+                        innerRadius={70}
+                        outerRadius={100}
                         paddingAngle={2}
+                        strokeWidth={0}
                         isAnimationActive
                         animationDuration={600}
                       >
@@ -622,26 +621,29 @@ export default function AnalyticsPage() {
                           fontSize: "12px",
                         }}
                       />
-                      <Legend
-                        verticalAlign="bottom"
-                        height={36}
-                        formatter={(value) => (
-                          <span className="text-xs text-foreground">{value}</span>
-                        )}
-                        iconType="circle"
-                        iconSize={8}
-                      />
                     </PieChart>
-                  </ResponsiveContainer>
-                  <div
-                    className="pointer-events-none absolute inset-x-0 top-0 flex h-[calc(100%-36px)] items-center justify-center pb-2"
-                    aria-hidden
-                  >
-                    <span className="font-display text-2xl font-bold text-foreground">
-                      {stats.drugTotal}
-                    </span>
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <span className="font-display text-2xl font-bold text-foreground">
+                        {stats.drugTotal}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                  <div className="mt-3 flex flex-wrap justify-center gap-4">
+                    {stats.pieData.map((entry) => (
+                      <span
+                        key={entry.name}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                      >
+                        <span
+                          className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: entry.fill }}
+                          aria-hidden
+                        />
+                        {entry.name}
+                      </span>
+                    ))}
+                  </div>
+                </>
               )}
             </section>
           </div>

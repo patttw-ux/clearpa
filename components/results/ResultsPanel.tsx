@@ -1,8 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, CheckCheck, Copy } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCheck,
+  CheckCircle2,
+  Copy,
+  ShieldAlert,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import type { PaAnswer } from "@/lib/types/analysis";
@@ -10,6 +24,161 @@ import type { SessionSavePayload } from "@/lib/types/pa-session";
 import { cn } from "@/lib/utils";
 
 import { AnswerCard } from "./AnswerCard";
+
+const RING_SIZE = 72;
+const RING_STROKE = 6;
+const RING_RADIUS = RING_SIZE / 2 - RING_STROKE / 2;
+const RING_CIRC = 2 * Math.PI * RING_RADIUS;
+
+function getCompletionGrade(pct: number): {
+  letter: string;
+  label: string;
+  letterClass: string;
+} {
+  if (pct >= 90) {
+    return {
+      letter: "A",
+      label: "Strong submission",
+      letterClass: "text-emerald-600 dark:text-emerald-400",
+    };
+  }
+  if (pct >= 75) {
+    return {
+      letter: "B",
+      label: "Good — review flagged items",
+      letterClass: "text-blue-600 dark:text-blue-400",
+    };
+  }
+  if (pct >= 50) {
+    return {
+      letter: "C",
+      label: "Fair — coordinator action needed",
+      letterClass: "text-amber-600 dark:text-amber-400",
+    };
+  }
+  return {
+    letter: "D",
+    label: "Incomplete — significant gaps",
+    letterClass: "text-red-600 dark:text-red-400",
+  };
+}
+
+/** Co-located with ResultsPanel — receives the same `answers` reference as AnswerCard lookups. */
+function CompletionSummaryBar({ answers }: { answers: PaAnswer[] }) {
+  console.log(
+    "[CompletionSummaryBar] answers:",
+    answers.length,
+    answers.map((a) => a.status),
+  );
+
+  const answeredCount = answers.filter((a) => a.status === "answered").length;
+  const needReviewCount = answers.filter((a) => a.status === "flagged").length;
+  const warningCount = answers.filter((a) => a.status === "warning").length;
+  const totalQuestions = answers.length;
+  const percentage =
+    totalQuestions > 0 ? (answeredCount / totalQuestions) * 100 : 0;
+
+  const pctClamped = Math.min(100, Math.max(0, Math.round(percentage)));
+  const targetOffset = RING_CIRC * (1 - pctClamped / 100);
+  const grade = getCompletionGrade(pctClamped);
+
+  return (
+    <div className="w-full rounded-xl border border-border bg-white p-5 dark:bg-card">
+      <div className="flex w-full flex-col items-stretch gap-6 md:flex-row md:items-center md:gap-6 lg:gap-8">
+        <div className="flex flex-1 flex-col items-center md:items-start">
+          <div className="relative flex h-[72px] w-[72px] shrink-0 items-center justify-center">
+            <svg
+              width={RING_SIZE}
+              height={RING_SIZE}
+              viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
+              className="shrink-0 -rotate-90"
+              aria-hidden
+            >
+              <circle
+                cx={RING_SIZE / 2}
+                cy={RING_SIZE / 2}
+                r={RING_RADIUS}
+                fill="none"
+                stroke="hsl(var(--border))"
+                strokeWidth={RING_STROKE}
+              />
+              <circle
+                cx={RING_SIZE / 2}
+                cy={RING_SIZE / 2}
+                r={RING_RADIUS}
+                fill="none"
+                stroke="hsl(var(--primary))"
+                strokeWidth={RING_STROKE}
+                strokeLinecap="round"
+                strokeDasharray={RING_CIRC}
+                className="results-completion-ring-progress"
+                style={
+                  {
+                    "--ring-circ": RING_CIRC,
+                    "--ring-target": targetOffset,
+                  } as CSSProperties
+                }
+              />
+            </svg>
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center font-display text-[18px] font-bold text-foreground">
+              {pctClamped}%
+            </span>
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">Complete</p>
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-2.5">
+          <div className="flex items-center gap-2">
+            <CheckCircle2
+              className="h-[14px] w-[14px] shrink-0 text-emerald-600 dark:text-emerald-400"
+              strokeWidth={2}
+              aria-hidden
+            />
+            <span className="font-display text-[13px] font-medium text-foreground">
+              {answeredCount} questions answered
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <AlertTriangle
+              className="h-[14px] w-[14px] shrink-0 text-amber-500 dark:text-amber-400"
+              strokeWidth={2}
+              aria-hidden
+            />
+            <span className="font-display text-[13px] font-medium text-foreground">
+              {needReviewCount} need review
+            </span>
+          </div>
+          {warningCount > 0 ? (
+            <div className="flex items-center gap-2">
+              <ShieldAlert
+                className="h-[14px] w-[14px] shrink-0 text-red-600 dark:text-red-400"
+                strokeWidth={2}
+                aria-hidden
+              />
+              <span className="font-display text-[13px] font-medium text-foreground">
+                {warningCount} warnings
+              </span>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex shrink-0 flex-col items-center md:items-end">
+          <span
+            className={cn(
+              "font-display text-[48px] font-bold leading-none tracking-tight",
+              grade.letterClass,
+            )}
+          >
+            {grade.letter}
+          </span>
+          <p className="mt-1 max-w-[12rem] text-center text-[11px] leading-snug text-muted-foreground md:text-right">
+            {grade.label}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function escapeHtml(s: string): string {
   return s
@@ -344,6 +513,11 @@ export function ResultsPanel({
     return null;
   }
 
+  console.log(
+    "[ResultsPanel] rendering summary bar, answers count:",
+    answers.length,
+  );
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 8 }}
@@ -369,6 +543,10 @@ export function ResultsPanel({
               </span>
             )}
           </div>
+        </div>
+
+        <div className="mt-6 w-full">
+          <CompletionSummaryBar answers={answers} />
         </div>
 
         <div className="mt-6 flex flex-col gap-4">
