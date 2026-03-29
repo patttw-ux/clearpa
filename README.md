@@ -57,6 +57,6 @@ npm run dev
 
 ## Team
 
-Built at UM CBC Spring Hackathon 2026 by Ethan Yang and Patrick Wang.
+Built at UM CBC Spring Hackathon 2026 by Patrick Wang.
 Domain validation: practicing ophthalmologist at San Jose Eye.
 First user: Kaitlynn (PA coordinator).
