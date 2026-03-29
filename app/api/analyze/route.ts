@@ -1,17 +1,20 @@
-import { createHash } from "crypto";
+import crypto from "crypto";
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
 
-import { parsePdfBuffer } from "@/lib/pdf/parsePdfBuffer";
 import { CLEARPA_ANALYZE_SYSTEM_PROMPT } from "@/lib/prompts/analyze-system";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-/** In-memory session cache: model output text keyed by chart snippet + questions hash */
+/** In-memory session cache: full assistant text keyed by file hashes + questions */
 const analysisCache = new Map<string, string>();
-const MAX_ANALYSIS_CACHE = 20;
+const MAX_ANALYSIS_CACHE = 50;
+
+/** Chunk size / delay to approximate live token streaming on cache replay */
+const CACHE_STREAM_CHUNK_CHARS = 12;
+const CACHE_STREAM_DELAY_MS = 10;
 
 function analysisCachePut(key: string, value: string) {
   if (analysisCache.has(key)) {
@@ -25,27 +28,30 @@ function analysisCachePut(key: string, value: string) {
   analysisCache.set(key, value);
 }
 
-async function buildAnalysisCacheKey(
+function buildAnalysisCacheKey(
   chartBuffer: Buffer,
+  questionnaireBuffer: Buffer | null,
   questions: string[],
-): Promise<string> {
-  let chartPrefix: string;
-  try {
-    const ab = chartBuffer.buffer.slice(
-      chartBuffer.byteOffset,
-      chartBuffer.byteOffset + chartBuffer.byteLength,
-    );
-    const { text } = await parsePdfBuffer(ab as ArrayBuffer);
-    chartPrefix = Array.from(text).slice(0, 500).join("");
-  } catch {
-    chartPrefix = chartBuffer
-      .subarray(0, Math.min(500, chartBuffer.length))
-      .toString("utf8");
-  }
-  const questionsJoined = questions.join("\n");
-  return createHash("sha256")
-    .update(chartPrefix + questionsJoined)
-    .digest("hex");
+): string {
+  const chartHash = crypto
+    .createHash("sha256")
+    .update(chartBuffer)
+    .digest("hex")
+    .slice(0, 16);
+
+  const questionnaireHash = questionnaireBuffer
+    ? crypto
+        .createHash("sha256")
+        .update(questionnaireBuffer)
+        .digest("hex")
+        .slice(0, 16)
+    : "";
+
+  return (
+    chartHash +
+    questionnaireHash +
+    questions.join("|").slice(0, 200)
+  );
 }
 
 function createFlushLine(
@@ -84,7 +90,7 @@ function createFlushLine(
   };
 }
 
-function streamSseFromModelText(
+async function streamSseFromCachedModelText(
   fullText: string,
   controller: ReadableStreamDefaultController<Uint8Array>,
 ) {
@@ -92,12 +98,18 @@ function streamSseFromModelText(
   const flushLine = createFlushLine(encoder, controller);
   let lineBuffer = "";
 
-  lineBuffer += fullText;
-  let nl: number;
-  while ((nl = lineBuffer.indexOf("\n")) !== -1) {
-    const complete = lineBuffer.slice(0, nl);
-    lineBuffer = lineBuffer.slice(nl + 1);
-    flushLine(complete);
+  for (let i = 0; i < fullText.length; i += CACHE_STREAM_CHUNK_CHARS) {
+    const chunk = fullText.slice(i, i + CACHE_STREAM_CHUNK_CHARS);
+    lineBuffer += chunk;
+    let nl: number;
+    while ((nl = lineBuffer.indexOf("\n")) !== -1) {
+      const complete = lineBuffer.slice(0, nl);
+      lineBuffer = lineBuffer.slice(nl + 1);
+      flushLine(complete);
+    }
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, CACHE_STREAM_DELAY_MS),
+    );
   }
   if (lineBuffer.trim()) {
     flushLine(lineBuffer);
@@ -225,25 +237,43 @@ export async function POST(req: Request) {
   }
 
   const chartBuffer = Buffer.from(await chartFile.arrayBuffer());
-  const cacheKey = await buildAnalysisCacheKey(chartBuffer, questionsParsed);
+  const questionnaireBuffer = questionnaireFile
+    ? Buffer.from(await questionnaireFile.arrayBuffer())
+    : null;
+
+  const cacheKey = buildAnalysisCacheKey(
+    chartBuffer,
+    questionnaireBuffer,
+    questionsParsed,
+  );
   const cached = analysisCache.get(cacheKey);
   if (cached !== undefined) {
     return new Response(
       new ReadableStream<Uint8Array>({
         start(controller) {
-          try {
-            streamSseFromModelText(cached, controller);
-          } catch (e) {
-            const encoder = new TextEncoder();
-            const message =
-              e instanceof Error ? e.message : "Analysis failed unexpectedly";
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ kind: "error", message })}\n\n`,
-              ),
-            );
-            controller.close();
-          }
+          void streamSseFromCachedModelText(cached, controller).catch(
+            (e: unknown) => {
+              const encoder = new TextEncoder();
+              const message =
+                e instanceof Error
+                  ? e.message
+                  : "Analysis failed unexpectedly";
+              try {
+                controller.enqueue(
+                  encoder.encode(
+                    `data: ${JSON.stringify({ kind: "error", message })}\n\n`,
+                  ),
+                );
+              } catch {
+                /* stream may be closed */
+              }
+              try {
+                controller.close();
+              } catch {
+                /* ignore */
+              }
+            },
+          );
         },
       }),
       { headers: sseHeaders },
@@ -253,9 +283,8 @@ export async function POST(req: Request) {
   const chartB64 = chartBuffer.toString("base64");
 
   let questionnaireB64: string | null = null;
-  if (questionnaireFile) {
-    const qBuf = Buffer.from(await questionnaireFile.arrayBuffer());
-    questionnaireB64 = qBuf.toString("base64");
+  if (questionnaireBuffer) {
+    questionnaireB64 = questionnaireBuffer.toString("base64");
   }
 
   const questionsBlock =
@@ -326,6 +355,7 @@ Follow the system output format exactly.`;
       const encoder = new TextEncoder();
       const flushLine = createFlushLine(encoder, controller);
       let lineBuffer = "";
+      let fullAssistantText = "";
 
       try {
         const anthropicStream = await anthropic.messages.create({
@@ -336,8 +366,6 @@ Follow the system output format exactly.`;
           system: CLEARPA_ANALYZE_SYSTEM_PROMPT,
           messages: [{ role: "user", content: userContent }],
         });
-
-        let fullAssistantText = "";
 
         for await (const event of anthropicStream) {
           if (event.type === "content_block_delta") {

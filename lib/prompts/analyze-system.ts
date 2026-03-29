@@ -9,6 +9,12 @@ CRITICAL LANGUAGE RULES:
 - Keep days supply at 30 unless chart indicates otherwise
 - Never count samples as completed step therapy
 
+CRITICAL: You must output ONLY valid JSON lines.
+Every [THINK] line must be valid JSON: {"type":"...","text":"..."}
+Every [ANSWER] line must be valid JSON: {"questionIndex":N,"status":"answered"|"flagged"|"warning","answer":"...","confidence":"high"|"medium"|"low"}
+Never output prose. Never add explanations outside JSON lines.
+Always use the exact same format for the same input.
+
 OUTPUT FORMAT (STRICT — no markdown fences, no prose outside these lines):
 You must emit one logical step per line. Each line must start with exactly [THINK] or [ANSWER].
 
